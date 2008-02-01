@@ -1,0 +1,4 @@
+IFDEF(INCWSLEVEL)(INCWSLEVEL())(STARTDEF())
+def(version)(0)(4.3.5)
+def(date)(0)(February 1, 2008)
+IFDEF(DECWSLEVEL)(DECWSLEVEL())(ENDDEF())\

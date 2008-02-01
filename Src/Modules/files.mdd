@@ -1,0 +1,7 @@
+name=zsh/files
+link=dynamic
+load=no
+
+autofeatures="b:chgrp b:chown b:ln b:mkdir b:mv b:rm b:rmdir b:sync"
+
+objects="files.o"
