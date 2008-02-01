@@ -1,0 +1,1 @@
+zsh-static: statically-linked-binary ./bin/zsh4-static

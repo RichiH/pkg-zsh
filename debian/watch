@@ -1,0 +1,3 @@
+version=2
+
+ftp://ftp.zsh.org/zsh/zsh-([\d.]+)\.tar\.gz

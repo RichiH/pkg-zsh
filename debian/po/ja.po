@@ -1,0 +1,41 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2003-08-26 10:59+0200\n"
+"PO-Revision-Date: 2003-09-10 00:16+0900\n"
+"Last-Translator: Kenshi Muto <kmuto@debian.org>\n"
+"Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=EUC-JP\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Description
+#: ../templates:3
+msgid "Global RCs moved to /etc/zsh/"
+msgstr "グローバルな RC は、/etc/zsh/ に移動されました"
+
+#. Description
+#: ../templates:3
+msgid ""
+"Global RC files (/etc/zshenv, /etc/zshrc, /etc/zprofile, /etc/zlogin) have "
+"been moved to the /etc/zsh directory."
+msgstr "グローバルな RC ファイル (/etc/zshenv、/etc/zshrc、/etc/zprofile、/etc/zlogin) は /etc/zsh ディレクトリに移動されました。"
+
+#. Description
+#: ../templates:3
+msgid "You may remove the old files or move them to /etc/zsh."
+msgstr "古いファイルを削除するか、/etc/zsh にそれらを移動できます。"

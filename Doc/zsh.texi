@@ -1,4 +1,3 @@
-
 \input texinfo.tex
 @c %**start of header
 @iftex
@@ -20,7 +19,7 @@
 @ifinfo
 @dircategory Utilities
 @direntry
-     * ZSH: (zsh).                     The Z Shell Manual.
+* ZSH: (zsh).                     The Z Shell Manual.
 @end direntry
 @end ifinfo
 

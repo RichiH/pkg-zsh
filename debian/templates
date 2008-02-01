@@ -1,0 +1,7 @@
+Template: zsh/rcmove
+Type: note
+_Description: Global RCs moved to /etc/zsh/
+ Global RC files (/etc/zshenv, /etc/zshrc, /etc/zprofile, /etc/zlogin) have
+ been moved to the /etc/zsh directory.
+ .
+ You may remove the old files or move them to /etc/zsh.

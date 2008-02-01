@@ -1,0 +1,5 @@
+/etc/zsh/zlogin
+/etc/zsh/zlogout
+/etc/zsh/zprofile
+/etc/zsh/zshenv
+/etc/zsh/zshrc
