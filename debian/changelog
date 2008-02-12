@@ -6,6 +6,7 @@ zsh (4.3.5-2) unstable; urgency=low
     #463620, #463621, #463622.
   * Drop debconf-related dependencies and all vestiges of the
     debconf note.  closes: #463916.
+  * Remove conffile movement code from postinst.
 
  -- Clint Adams <schizo@debian.org>  Tue, 12 Feb 2008 18:28:01 -0500
 
