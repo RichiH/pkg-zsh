@@ -2,10 +2,5 @@
 
 if test -x /usr/bin/update-menus ; then update-menus ; fi
 
-if [ "$1" = "purge" ] && test -r /usr/share/debconf/confmodule; then
-      . /usr/share/debconf/confmodule
-      db_purge
-fi
-
 remove-shell /bin/zsh
 remove-shell /usr/bin/zsh
