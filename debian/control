@@ -4,6 +4,7 @@ Priority: optional
 Build-Depends: texinfo, groff-base, libncursesw5-dev, texi2html (>= 1.76-3), libcap-dev [!hurd-i386 !kfreebsd-i386 !kfreebsd-amd64], bsdmainutils, po-debconf, libpcre3-dev, texlive-latex-base | tetex-bin
 Maintainer: Clint Adams <schizo@debian.org>
 Standards-Version: 3.7.3
+Homepage: http://www.zsh.org/
 
 Package: zsh
 Architecture: any

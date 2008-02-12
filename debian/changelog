@@ -1,3 +1,9 @@
+zsh (4.3.5-2) unstable; urgency=low
+
+  * Add Homepage control field.
+
+ -- Clint Adams <schizo@debian.org>  Tue, 12 Feb 2008 18:28:01 -0500
+
 zsh (4.3.5-1) unstable; urgency=low
 
   * New upstream version. 
