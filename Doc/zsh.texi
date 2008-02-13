@@ -569,7 +569,7 @@ When it starts, the shell reads commands from various files.  These can
 be created or edited to customize the shell.  See @ref{Files}.
 
 @noindent
-If no personal intialization files exist for the current user, a function
+If no personal initialization files exist for the current user, a function
 is run to help you change some of the most common settings.  It won't
 appear if your administrator has disabled the @t{zsh/newuser} module.
 The function is designed to be self-explanatory.  You can run it by hand
@@ -1424,7 +1424,7 @@ chunks of code are referred to as the `try block' and the `always block'.
 
 @noindent
 Optional newlines or semicolons may appear after the @t{always};
-note, however, that they may @emph{not} appear between the preceeding
+note, however, that they may @emph{not} appear between the preceding
 closing brace and the @t{always}.
 
 @noindent
@@ -3708,7 +3708,7 @@ across all forms of expansion.
 
 @noindent
 If the option @t{HIST_SUBST_PATTERN} is set, @var{l} is treated as
-a pattern of the usual form desribed in
+a pattern of the usual form described in
 @ref{Filename Generation}.  This can be used in
 all the places where modifiers are available; note, however, that
 in globbing qualifiers parameter substitution has already taken place,
@@ -3717,7 +3717,7 @@ they are replaced at the correct time.
 Note also that complicated patterns used in globbing qualifiers may
 need the extended glob qualifier notation
 @t{(#q:s/}@var{...}@t{/}@var{...}@t{/)} in order for the
-shell to recognize the expression as a glob qualifer.  Further,
+shell to recognize the expression as a glob qualifier.  Further,
 note that bad patterns in the substitution are not subject to
 the @t{NO_BAD_PATTERN} option so will cause an error.
 
@@ -7717,7 +7717,7 @@ Note that this happens anyway with @t{typeset} and similar statements.
 @noindent
 This option respects the setting of the @t{KSH_TYPESET} option.  In other
 words, if both options are in effect, arguments looking like
-assignments will not undergo wordsplitting.
+assignments will not undergo word splitting.
 
 @pindex MARK_DIRS
 @cindex directories, marking
@@ -10613,7 +10613,7 @@ introduce an attribute turns it off.
 
 @noindent
 If the @t{-p} option is given, parameters and values are printed in the
-form of a typeset comand and an assignment (which will be printed
+form of a typeset command and an assignment (which will be printed
 separately for arrays and associative arrays), regardless of other flags
 and options.  Note that the @t{-h} flag on parameters is respected; no
 value will be shown for these parameters.
@@ -21990,7 +21990,7 @@ arrow keys return the name of the key in the parameter @var{kparam}.  The
 key names are the macros defined in the @t{curses.h} or @t{ncurses.h}
 with the prefix `@t{KEY_}' removed; see also the description of the
 parameter @t{zcurses_keycodes} below.  Other keys cause a value to be
-set in @var{param} as before.  On a succesful return only one of
+set in @var{param} as before.  On a successful return only one of
 @var{param} or @var{kparam} contains a non-empty string; the other is set
 to an empty string.
 
@@ -22604,7 +22604,7 @@ The @t{zsh/newuser} module is then unconditionally unloaded.
 Note that it is possible to achieve exactly the same effect as the
 @t{zsh/newuser} module by adding code to @t{/etc/zshenv}.  The module
 exists simply to allow the shell to make arrangements for new users without
-the need for invervention by package maintainers and system administrators.
+the need for intervention by package maintainers and system administrators.
 
 @noindent
 The script supplied with the module invokes the shell function
@@ -22953,7 +22953,7 @@ shown when @t{sched} is run with no arguments (provided that the
 consists of the scheduled time in seconds since the epoch
 (see The zsh/datetime Module for facilities for
 using this number), followed by a colon, followed by any options
-(which may be empty but will be preceeded by a `@t{-}' otherwise),
+(which may be empty but will be preceded by a `@t{-}' otherwise),
 followed by a colon, followed by the command to be executed.
 
 @noindent
@@ -24921,7 +24921,7 @@ a date and time specification followed by a description of the event.
 @noindent
 Various enhancements to this format are supported, based on the syntax
 of Emacs calendar mode.  An indented line indicates a continuation line
-that continues the description of the event from the preceeding line
+that continues the description of the event from the preceding line
 (note the date may not be continued in this way).  An initial ampersand
 (@t{&}) is ignored for compatibility.
 
@@ -25158,7 +25158,7 @@ passed to the function @t{calendar}, the start time acts an anchor for the
 end time when the end time is relative (even if the start time is
 implicit).  When examining calendar files, the scheduled event being
 examined anchors the warning time when it is given explicitly by means of
-the @t{WARN} keyword; likewise, the scheduled event anchors a repitition
+the @t{WARN} keyword; likewise, the scheduled event anchors a repetition
 period when given by the @t{RPT} keyword, so that specifications such as
 @t{RPT 2 months, 3rd Thursday} are handled properly.  Finally, the @t{-R}
 argument to @t{calendar_scandate} directly provides an anchor for relative
@@ -25401,7 +25401,7 @@ Adds a single event to the calendar in the appropriate location.
 The event can contain multiple lines, as described in
 @ref{Calendar File and Date Formats}.
 Using this function ensures that the calendar file is sorted in date
-and time order.  It also makes special arrangments for locking
+and time order.  It also makes special arrangements for locking
 the file while it is altered.  The old calendar is left in a file
 with the suffix @t{.old}.
 
@@ -25452,22 +25452,27 @@ parameter @t{reply} to an empty associative array.  Otherwise,
 it returns status 0 and sets elements of the associative
 array @t{reply} as follows:
 @table @asis
-@item timeNL()The time as a string of digits in the same units as
+@item time
+The time as a string of digits in the same units as
 @t{$EPOCHSECONDS}
 @item text1
 The text from the line not including the date and time of the
 event, but including any @t{WARN} or @t{RPT} keywords and values.
-@item warntimeNL()Any warning time given by the @t{WARN} keyword as a string
+@item warntime
+Any warning time given by the @t{WARN} keyword as a string
 of digits containing the time at which to warn in the same units as
 @t{$EPOCHSECONDS}.  (Note this is an absolute time, not the relative time
 passed down.)  Not set no @t{WARN} keyword and value were
 matched.
-@item warnstrNL()The raw string matched after the @t{WARN} keyword, else unset.
-@item rpttimeNL()Any recurrence time given by the @t{RPT} keyword as a string
-of digits containing the time of the recurrenced in the same units
+@item warnstr
+The raw string matched after the @t{WARN} keyword, else unset.
+@item rpttime
+Any recurrence time given by the @t{RPT} keyword as a string
+of digits containing the time of the recurrence in the same units
 as @t{$EPOCHSECONDS}.  (Note this is an absolute time.)  Not set if
 no @t{RPT} keyword and value were matched.
-@item rptstrNL()The raw string matched after the @t{RPT} keyword, else unset.
+@item rptstr
+The raw string matched after the @t{RPT} keyword, else unset.
 @item text2
 The text from the line after removal of the date and any
 keywords and values.
@@ -25486,7 +25491,7 @@ month, 1st Friday'} shows the date of the first Friday of next month.
 
 @noindent
 With the option @t{-r} nothing is printed but the value of the date and
-timein seconds since the epoch is stored in the parameter @t{REPLY}.
+time in seconds since the epoch is stored in the parameter @t{REPLY}.
 
 @noindent
 With the option @t{-f} @var{fmt} the given date/time conversion format
@@ -25527,7 +25532,7 @@ disable stat
 
 @noindent
 @t{age} selects files having a given modification time for use
-as a glob qualifer.  The format of the date is the same as that
+as a glob qualifier.  The format of the date is the same as that
 understood by the calendar system, described in
 @ref{Calendar File and Date Formats}.
 
@@ -25695,7 +25700,7 @@ The files locked are appended to the array @t{lockfiles}, which should
 be local to the caller.
 
 @noindent
-If all files were successully, status zero is returned, else status one.
+If all files were successfully locked, status zero is returned, else status one.
 
 @noindent
 This function may be used as a general file locking function, although
@@ -25728,7 +25733,7 @@ Options:
 @table @asis
 @item @t{-a}
 The date and time are anchored to the start of the argument; they
-will not be matched if there is preceeding text.
+will not be matched if there is preceding text.
 
 @item @t{-A}
 The date and time are anchored to both the start and end of the argument;
@@ -26434,7 +26439,7 @@ string.  It can contain:
 @table @asis
 @item @t{%c}
 Expands to 1 if the session is the current session, otherwise 0.  Used
-with ternary expresions such as `@t{%(c.-.+)}' to
+with ternary expressions such as `@t{%(c.-.+)}' to
 output `@t{+}' for the current session and `@t{-}' otherwise.
 
 @item @t{%f}
@@ -28468,7 +28473,7 @@ Circumflex.
 Tilde.  (This is not @t{~} as RFC 1345 does not assume that
 character is present on the keyboard.)
 @item @t{-}
-Macron.  (A horizonal bar over the base character.)
+Macron.  (A horizontal bar over the base character.)
 @item @t{(}
 Breve.  (A shallow dish shape over the base character.)
 @item @t{.}
@@ -28502,7 +28507,7 @@ The most common characters from the Arabic, Cyrillic, Greek and Hebrew
 alphabets are available; consult RFC 1345 for the appropriate sequences.
 In addition, a set of two letter codes not in RFC 1345 are available for
 the double-width characters corresponding to ASCII characters from @t{!}
-to @t{~} (0x21 to 0x7e) by preceeding the character with @t{^}, for
+to @t{~} (0x21 to 0x7e) by preceding the character with @t{^}, for
 example @t{^A} for a double-width @t{A}.
 
 @noindent
@@ -28931,7 +28936,7 @@ print This line contains fan and fond
 @noindent
 and invoking @t{replace-pattern} with the source string
 `@t{f(?)n}' and
-the replacment string `@t{c\1r}' produces the not very useful line:
+the replacement string `@t{c\1r}' produces the not very useful line:
 
 @noindent
 @example
@@ -29682,7 +29687,7 @@ zstyle ':mime:*' x-browsers opera konqueror firefox
 @end example
 
 @noindent
-specifies that @t{pick-web-browser} should first look for a runing
+specifies that @t{pick-web-browser} should first look for a running
 instance of Opera, Konqueror or Firefox, in that order, and if it
 fails to find any should attempt to start Opera.  The default is
 @t{firefox mozilla netscape opera konqueror}.
@@ -29697,7 +29702,7 @@ If it is set this style is used to pick the command
 used to open a page for a browser.  The context is
 @t{:mime:browser:new:$browser:} to start a new browser or
 @t{:mime:browser:running:$browser:} to open a URL in a browser already
-runing on the current X display, where @t{$browser} is the value matched
+running on the current X display, where @t{$browser} is the value matched
 in the @t{x-browsers} or @t{tty-browsers} style.  The escape sequence
 @t{%b} in the style's value will be replaced by the browser, while @t{%u}
 will be replaced by the URL.  If the style is not set, the default for all
