@@ -5,6 +5,8 @@ Build-Depends: texinfo, groff-base, libncursesw5-dev, texi2html (>= 1.76-3), lib
 Maintainer: Clint Adams <schizo@debian.org>
 Standards-Version: 3.7.3
 Homepage: http://www.zsh.org/
+Vcs-Git: git://git.debian.org/git/private/schizo/zsh.git
+Vcs-Browser: http://git.debian.org/?p=private/schizo/zsh.git;a=summary
 
 Package: zsh
 Architecture: any

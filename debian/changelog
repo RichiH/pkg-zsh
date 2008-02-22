@@ -6,6 +6,7 @@ zsh (4.3.5-3) unstable; urgency=medium
     closes: #466904.
   * Patch documentation to reflect that global rc files are
     in /etc/zsh.  closes: #466596.
+  * Add Vcs-Git and Vcs-Browser control headers.
 
  -- Clint Adams <schizo@debian.org>  Fri, 22 Feb 2008 10:07:10 -0500
 
