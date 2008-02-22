@@ -2,6 +2,8 @@ zsh (4.3.5-3) unstable; urgency=medium
 
   * ZU#12632: fix bug unexporting special parameter after
     "SPECIAL=stuff funccall".  closes: #317773.
+  * Drop --print-gnu-build-architecture from dpkg completion.
+    closes: #466904.
 
  -- Clint Adams <schizo@debian.org>  Fri, 22 Feb 2008 10:07:10 -0500
 
