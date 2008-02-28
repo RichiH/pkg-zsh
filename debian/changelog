@@ -1,3 +1,10 @@
+zsh (4.3.5-4) unstable; urgency=low
+
+  * ZW#24611: fix ${+array[...]} with empty range matches.
+    closes: #466655.
+
+ -- Clint Adams <schizo@debian.org>  Thu, 28 Feb 2008 00:04:41 -0500
+
 zsh (4.3.5-3) unstable; urgency=medium
 
   * ZU#12632: fix bug unexporting special parameter after
