@@ -178,8 +178,8 @@ binary-arch-dynamic:	checkroot build
 	perl $(CURDIR)/Util/helpfiles )
 
 ifeq (zsh-beta,$(package))
-	sed -i -e \
-	's/zsh(all|builtins|compctl|compsys|compwid|contrib|expn|misc|modules|options|param|roadmap|tcpsys|zftpsys|zle|calsys)/$(package)$$1/g' \
+	sed -r -i -e \
+	's/zsh(all|builtins|compctl|compsys|compwid|contrib|expn|misc|modules|options|param|roadmap|tcpsys|zftpsys|zle|calsys)/$(package)\1/g' \
 	debian/tmp/usr/share/man/man1/*.1
 endif
 
