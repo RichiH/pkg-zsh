@@ -1,3 +1,10 @@
+zsh (4.3.5-5) unstable; urgency=medium
+
+  * Fix completion of rsync -e ssh remote pathnames containing spaces.
+    closes: #468654.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 02 Mar 2008 16:55:13 -0500
+
 zsh (4.3.5-4) unstable; urgency=low
 
   * ZW#24611: fix ${+array[...]} with empty range matches.
