@@ -113,7 +113,7 @@ endif
 	        debian/files* core debian/*ubstvars \
 	        stamp-configure stamp-configure-static \
 		config.cache config.status config.status.lineno \
-		Doc/zsh.idx
+		Doc/zsh.idx config.h.in~
 	-rm -rf debian/tmp debian/tmp-doc debian/tmp-static debian/tmp-dbg \
 	        debian/tmp-dev config.cache obj obj-static \
 		autom4te.cache
