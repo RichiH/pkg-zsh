@@ -1,6 +1,8 @@
 zsh (4.3.5-6) unstable; urgency=low
 
   * Completion for calendar.
+  * Update git completion (bisect skip and run, copying with the
+    situation wherein git is an alias to a wrapper).
 
  -- Clint Adams <schizo@debian.org>  Sun, 16 Mar 2008 10:46:49 -0400
 
