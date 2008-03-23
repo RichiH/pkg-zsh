@@ -1,3 +1,14 @@
+zsh (4.3.5-7) unstable; urgency=medium
+
+  * Complete packages for aptitude why and why-not.  closes: #472193.
+  * Make git completion cope with user configs setting colors to
+    "always".  closes: #469588.
+  * Move doc-base section to 'Shells' in accordance with doc-base 0.8.10
+    policy.
+  * Add PDF format to the doc-base control file.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 23 Mar 2008 12:06:29 -0400
+
 zsh (4.3.5-6) unstable; urgency=low
 
   * Completion for calendar.
