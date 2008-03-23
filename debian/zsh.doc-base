@@ -14,3 +14,6 @@ Files: /usr/share/info/zsh.info*
 Format: HTML
 Index: /usr/share/doc/zsh-doc/html/zsh_toc.html
 Files: /usr/share/doc/zsh-doc/html/*.html
+
+Format: PDF
+Files: /usr/share/doc/zsh-doc/zsh.pdf
