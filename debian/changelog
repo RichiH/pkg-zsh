@@ -1,3 +1,12 @@
+zsh (4.3.5-8) unstable; urgency=low
+
+  * Avoid removal/readdition of shells in /etc/shells on package
+    upgrades, in order to preserve local changes.
+    closes: #473199, #473200.
+  * Switch build dependency to libcap2-dev.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 29 Mar 2008 13:15:58 -0400
+
 zsh (4.3.5-7) unstable; urgency=medium
 
   * Complete packages for aptitude why and why-not.  closes: #472193.
