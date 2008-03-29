@@ -1,8 +1,10 @@
 #!/bin/sh -e
 
 case "$1" in
-    configure)
-	# continue below
+    (configure)
+    if test -z "$2"; then
+	    add-shell /bin/zsh-static
+    fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
@@ -16,7 +18,5 @@ case "$1" in
 esac
 
 update-alternatives --install /bin/zsh-static zsh-static /bin/zsh4-static 40
-
-add-shell /bin/zsh-static
 
 exit 0

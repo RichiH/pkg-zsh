@@ -2,7 +2,10 @@
 
 case "$1" in
     (configure)
-	:
+    if test -z "$2"; then
+	    add-shell /bin/zsh
+	    add-shell /usr/bin/zsh
+    fi
     ;;
     (abort-upgrade|abort-remove|abort-deconfigure)
 	exit 0
@@ -26,8 +29,5 @@ update-alternatives --install /bin/ksh ksh /bin/zsh4 5 \
 
 mkdir -m2775 -p /usr/local/share/zsh/site-functions && chown root:staff \
                /usr/local/share/zsh/site-functions || true
-
-add-shell /bin/zsh
-add-shell /usr/bin/zsh
 
 exit 0

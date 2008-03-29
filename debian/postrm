@@ -2,5 +2,9 @@
 
 if test -x /usr/bin/update-menus ; then update-menus ; fi
 
-remove-shell /bin/zsh
-remove-shell /usr/bin/zsh
+case "$1" in
+	(remove)
+	remove-shell /bin/zsh
+	remove-shell /usr/bin/zsh
+	;;
+esac
