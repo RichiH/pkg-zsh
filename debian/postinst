@@ -2,10 +2,10 @@
 
 case "$1" in
     (configure)
-    if test -z "$2"; then
+#    if test -z "$2"; then
 	    add-shell /bin/zsh
 	    add-shell /usr/bin/zsh
-    fi
+#    fi
     ;;
     (abort-upgrade|abort-remove|abort-deconfigure)
 	exit 0
