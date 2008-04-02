@@ -1,4 +1,3 @@
-
 \input texinfo.tex
 @c %**start of header
 @iftex
@@ -1093,7 +1092,7 @@ be executed when zsh is invoked with the `@t{-f}' option.
 @item @t{/etc/zsh/zprofile}
 @item @t{/etc/zsh/zshrc}
 @item @t{/etc/zsh/zlogin}
-@item @t{/etc/zsh/zlogout}    (installation-specific - @t{/etc} is the default)
+@item @t{/etc/zsh/zlogout}    (installation-specific - @t{/etc/zsh} is the Debian default)
 @item
 @end table
 @c (avoiding a yodl bug)
@@ -25537,22 +25536,27 @@ parameter @t{reply} to an empty associative array.  Otherwise,
 it returns status 0 and sets elements of the associative
 array @t{reply} as follows:
 @table @asis
-@item timeNL()The time as a string of digits in the same units as
+@item time
+The time as a string of digits in the same units as
 @t{$EPOCHSECONDS}
 @item text1
 The text from the line not including the date and time of the
 event, but including any @t{WARN} or @t{RPT} keywords and values.
-@item warntimeNL()Any warning time given by the @t{WARN} keyword as a string
+@item warntime
+Any warning time given by the @t{WARN} keyword as a string
 of digits containing the time at which to warn in the same units as
 @t{$EPOCHSECONDS}.  (Note this is an absolute time, not the relative time
 passed down.)  Not set no @t{WARN} keyword and value were
 matched.
-@item warnstrNL()The raw string matched after the @t{WARN} keyword, else unset.
-@item rpttimeNL()Any recurrence time given by the @t{RPT} keyword as a string
+@item warnstr
+The raw string matched after the @t{WARN} keyword, else unset.
+@item rpttime
+Any recurrence time given by the @t{RPT} keyword as a string
 of digits containing the time of the recurrence in the same units
 as @t{$EPOCHSECONDS}.  (Note this is an absolute time.)  Not set if
 no @t{RPT} keyword and value were matched.
-@item rptstrNL()The raw string matched after the @t{RPT} keyword, else unset.
+@item rptstr
+The raw string matched after the @t{RPT} keyword, else unset.
 @item text2
 The text from the line after removal of the date and any
 keywords and values.
