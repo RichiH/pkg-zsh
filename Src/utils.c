@@ -4268,6 +4268,8 @@ quotestring(const char *s, char **e, int instring)
 		while (*u && *u != c)
 		    *v++ = *u++;
 		*v++ = c;
+		if (*u)
+		    u++;
 		continue;
 	    } else if ((*u == Qstring || *u == '$') && u[1] == '\'' &&
 		       instring == QT_DOUBLE) {
@@ -4867,6 +4869,7 @@ getkeystring(char *s, int *len, int how, int *misc)
 		} else {
 #   ifdef HAVE_ICONV
 		    ICONV_CONST char *inptr = inbuf;
+		    const char *codesetstr = nl_langinfo(CODESET);
     	    	    inbytes = 4;
 		    outbytes = 6;
 		    /* store value in big endian form */
@@ -4875,9 +4878,38 @@ getkeystring(char *s, int *len, int how, int *misc)
 			wval >>= 8;
 		    }
 
-    	    	    cd = iconv_open(nl_langinfo(CODESET), "UCS-4BE");
+		    /*
+		     * If the code set isn't handled, we'd better
+		     * assume it's US-ASCII rather than just failing
+		     * hopelessly.  Solaris has a weird habit of
+		     * returning 646.  This is handled by the
+		     * native iconv(), but not by GNU iconv; what's
+		     * more, some versions of the native iconv don't
+		     * handle standard names like ASCII.
+		     *
+		     * This should only be a problem if there's a
+		     * mismatch between the NLS and the iconv in use,
+		     * which probably only means if libiconv is in use.
+		     * We checked at configure time if our libraries
+		     * pulled in _libiconv_version, which should be
+		     * a good test.
+		     *
+		     * It shouldn't ever be NULL, but while we're
+		     * being paranoid...
+		     */
+#ifdef ICONV_FROM_LIBICONV
+		    if (!codesetstr || !*codesetstr)
+			codesetstr = "US-ASCII";
+#endif
+    	    	    cd = iconv_open(codesetstr, "UCS-4BE");
+#ifdef ICONV_FROM_LIBICONV
+		    if (cd == (iconv_t)-1 &&  !strcmp(codesetstr, "646")) {
+			codesetstr = "US-ASCII";
+			cd = iconv_open(codesetstr, "UCS-4BE");
+		    }
+#endif
 		    if (cd == (iconv_t)-1) {
-			zerr("cannot do charset conversion");
+			zerr("cannot do charset conversion (iconv failed)");
 			CHARSET_FAILED();
 		    }
                     count = iconv(cd, &inptr, &inbytes, &t, &outbytes);
@@ -4889,12 +4921,12 @@ getkeystring(char *s, int *len, int how, int *misc)
 		    if ((how & GETKEY_UPDATE_OFFSET) && s - sstart < *misc)
 			(*misc) += count;
 #   else
-                    zerr("cannot do charset conversion");
+                    zerr("cannot do charset conversion (iconv not available)");
 		    CHARSET_FAILED();
 #   endif
 		}
 #  else
-                zerr("cannot do charset conversion");
+                zerr("cannot do charset conversion (NLS not supported)");
 		CHARSET_FAILED();
 #  endif
 # endif

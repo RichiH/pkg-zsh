@@ -282,6 +282,7 @@
   print ${(P)bar}
 0:${(P)...}
 >I'm nearly out of my mind with tedium
+#' deconfuse emacs
 
   foo=(I could be watching that programme I recorded)
   print ${(o)foo}
@@ -333,6 +334,34 @@
 0:${(Q)...} with handling of $'...'
 >XABY
 
+  # The following may look a bit random.
+  # For the split we are checking that anything that
+  # would normally be followed by a different word has
+  # an argument break after it and anything that wouldn't doesn't.
+  # For the (Q) we are simply checking that nothing disappears
+  # in the parsing.
+  foo='<five> {six} (seven) >eight< }nine{ |forty-two| $many$ )ten( more'
+  array=(${(z)foo})
+  print -l ${(Q)array}
+0:${(z)...} and ${(Q)...} for some hard to parse cases
+><
+>five
+>>
+>{six}
+>(
+>seven
+>)
+>>
+>eight
+><
+>}nine{
+>|
+>forty-two
+>|
+>$many$
+>)
+>ten( more
+
   psvar=(dog)
   setopt promptsubst
   foo='It shouldn'\''t $(happen) to a %1v.'
@@ -347,6 +376,7 @@
   print ${(QX)foo}
 1:${(QX)...}
 ?(eval):2: unmatched "
+# " deconfuse emacs
 
   array=(characters in an array)
   print ${(c)#array}
@@ -383,6 +413,7 @@
   print ${(pl.10..\x22..X.)foo}
 0:${(pl...)...}
 >Xresulting """"Xwords roariously """Xpadded
+#" deconfuse emacs
 
   print ${(l.5..X.r.5..Y.)foo}
   print ${(l.6..X.r.4..Y.)foo}
@@ -842,6 +873,7 @@
 0:Parameters associated with backreferences
 >match 12 16 match
 >1 1 1
+#' deconfuse emacs
 
   string='and look for a MATCH in here'
   if [[ ${(S)string%%(#m)M*H} = "and look for a  in here" ]]; then
@@ -982,3 +1014,36 @@
 >fields
 >in
 >it
+
+  array=('%' '$' 'j' '*' '$foo')
+  print ${array[(i)*]} "${array[(i)*]}"
+  print ${array[(ie)*]} "${array[(ie)*]}"
+  key='$foo'
+  print ${array[(ie)$key]} "${array[(ie)$key]}"
+  key='*'
+  print ${array[(ie)$key]} "${array[(ie)$key]}"
+0:Matching array indices with and without quoting
+>1 1
+>4 4
+>5 5
+>4 4
+
+# Ordering of associative arrays is arbitrary, so we need to use
+# patterns that only match one element.
+  typeset -A assoc_r
+  assoc_r=(star '*' of '*this*' and '!that!' or '(the|other)')
+  print ${(kv)assoc_r[(re)*]}
+  print ${(kv)assoc_r[(re)*this*]}
+  print ${(kv)assoc_r[(re)!that!]}
+  print ${(kv)assoc_r[(re)(the|other)]}
+  print ${(kv)assoc_r[(r)*at*]}
+  print ${(kv)assoc_r[(r)*(ywis|bliss|kiss|miss|this)*]}
+  print ${(kv)assoc_r[(r)(this|that|\(the\|other\))]}
+0:Reverse subscripting associative arrays with literal matching
+>star *
+>of *this*
+>and !that!
+>or (the|other)
+>and !that!
+>of *this*
+>or (the|other)

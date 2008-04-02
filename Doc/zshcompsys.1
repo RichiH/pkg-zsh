@@ -1,4 +1,4 @@
-.TH "ZSHCOMPSYS" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHCOMPSYS" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshcompsys \- zsh completion system
 .\" Yodl file: Zsh/compsys.yo
@@ -1164,6 +1164,15 @@ bindable command\&.  If it set to `true\&' and the word on the command
 line is not the name of an alias, matching alias names will be
 completed\&.
 .TP
+\fBcomplete\-options\fP
+This is used by the completer for \fBcd\fP, \fBchdir\fP and \fBpushd\fP\&.
+For these commands a \fB\-\fP is used to introduce a directory stack entry
+and completion of these is far more common than completing options\&.
+Hence unless the value of this style is true options will not be
+completed, even after an initial \fB\-\fP\&.  If it is true, options will
+be completed after an initial \fB\-\fP unless there is a preceeding
+\fB\-\fP\fB\-\fP on the command line\&.
+.TP
 \fBcompleter\fP
 The strings given as the value of this style provide the names of the
 completer functions to use\&. The available completer functions are
@@ -1206,6 +1215,14 @@ and the \fB$fignore\fP array and then without ignoring matches\&.
 This style is used by the \fB_list\fP completer function to decide if
 insertion of matches should be delayed unconditionally\&. The default is 
 `true\&'\&.
+.TP
+\fBdelimiters\fP
+This style is used when adding a delimiter for use with history
+modifiers or glob qualifiers that have delimited arguments\&.  It is
+an array of preferred delimiters to add\&.  Non\-special characters are
+preferred as the completion system may otherwise become confused\&.
+The default list is \fB:\fP, \fB+\fP, \fB/\fP, \fB\-\fP, \fB%\fP\&.  The list
+may be empty to force a delimiter to be typed\&.
 .TP
 \fBdisabled\fP
 If this is set to `true\&', the \fB_expand_alias\fP completer and bindable 
@@ -1644,6 +1661,11 @@ Excluded values act in a similar fashion to values of the
 \fBignored\-patterns\fP style, so they can be restored to consideration by
 the \fB_ignored\fP completer\&.
 .RE
+.TP
+\fBextra\-verbose\fP
+If set, the completion listing is more verbose at the cost of
+a probable decrease in completion speed\&.  Completion performance
+will suffer if this style is set to `true\&'\&.
 .TP
 \fBignored\-patterns\fP
 A list of patterns; any trial completion matching one of the patterns

@@ -1,4 +1,4 @@
-.TH "ZSHCALSYS" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHCALSYS" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshcalsys \- zsh calendar system
 .\" Yodl file: Zsh/calsys.yo
@@ -486,6 +486,10 @@ option \fB\-L\fP indicates that \fBcalendar_add\fP does not need to lock the
 calendar file as it is already locked\&.  These options will not usually be
 needed by users\&.
 .PP
+If the style \fBreformat\-date\fP is true, the date and time of the
+new entry will be rewritten into the standard date format:  see
+the descriptions of this style and the style \fBdate\-format\fP\&.
+.PP
 The function can use a unique identifier stored with each event to ensure
 that updates to existing events are treated correctly\&.  The entry
 should contain the word \fBUID\fP, followed by whitespace, followed by
@@ -710,6 +714,13 @@ The location of the file to which events which have passed are appended\&.
 The default is the calendar file location with the suffix \fB\&.done\fP\&.
 The style may be set to an empty string in which case a "done" file
 will not be maintained\&.
+.TP
+\fBreformat\-date\fP
+Boolean, used by \fBcalendar_add\fP\&.  If it is true, the date and time
+of new entries added to the calendar will be reformatted to the format
+given by the style \fBdate\-format\fP or its default\&.  Only the date and
+time of the event itself is reformatted; any subsidiary dates and times
+such as those associated with repeat and warning times are left alone\&.
 .TP
 \fBshow\-prog\fP
 The programme run by \fBcalendar\fP for showing events\&.  It will

@@ -1,3 +1,4 @@
+
 \input texinfo.tex
 @c %**start of header
 @iftex
@@ -28,8 +29,8 @@
 @end iftex
 @titlepage
 @title The Z Shell Manual
-@subtitle Version 4.3.5
-@subtitle Updated February 1, 2008
+@subtitle Version 4.3.6
+@subtitle Updated April 2, 2008
 @author Original documentation by Paul Falstad
 @page
 This is a texinfo version of the documentation for the Z Shell, originally by 
@@ -62,7 +63,7 @@ This Info file documents Zsh, a freely available UNIX command interpreter
 
 @noindent
 @cindex version
-Version 4.3.5, last updated February 1, 2008.
+Version 4.3.6, last updated April 2, 2008.
 @end ifinfo
 
 @menu
@@ -1029,7 +1030,7 @@ files.
 @pindex NO_GLOBAL_RCS, use of
 @vindex ZDOTDIR, use of
 @cindex zshenv
-Commands are first read from @t{/etc/zshenv}; this cannot be overridden.
+Commands are first read from @t{/etc/zsh/zshenv}; this cannot be overridden.
 Subsequent behaviour is modified by the @t{RCS} and
 @t{GLOBAL_RCS} options; the former affects all startup files, while the
 second only affects those in the @t{/etc} directory.  If one of the options
@@ -1044,18 +1045,18 @@ Commands are then read from @t{$ZDOTDIR/.zshenv}.
 @pindex LOGIN, use of
 @cindex zprofile
 If the shell is a login shell, commands
-are read from @t{/etc/zprofile} and then @t{$ZDOTDIR/.zprofile}.
+are read from @t{/etc/zsh/zprofile} and then @t{$ZDOTDIR/.zprofile}.
 @cindex zshrc
 Then, if the shell is interactive,
-commands are read from @t{/etc/zshrc} and then @t{$ZDOTDIR/.zshrc}.
+commands are read from @t{/etc/zsh/zshrc} and then @t{$ZDOTDIR/.zshrc}.
 @cindex zlogin
-Finally, if the shell is a login shell, @t{/etc/zlogin} and
+Finally, if the shell is a login shell, @t{/etc/zsh/zlogin} and
 @t{$ZDOTDIR/.zlogin} are read.
 
 @noindent
 @cindex zlogout
 When a login shell exits, the files @t{$ZDOTDIR/.zlogout} and then
-@t{/etc/zlogout} are read.  This happens with either an explicit exit
+@t{/etc/zsh/zlogout} are read.  This happens with either an explicit exit
 via the @t{exit} or @t{logout} commands, or an implicit exit by reading
 end-of-file from the terminal.  However, if the shell terminates due
 to @t{exec}'ing another process, the logout files are not read.
@@ -1071,7 +1072,7 @@ Those files listed above as being in @t{/etc} may be in another
 directory, depending on the installation.
 
 @noindent
-As @t{/etc/zshenv} is run for all instances of zsh, it is important that
+As @t{/etc/zsh/zshenv} is run for all instances of zsh, it is important that
 it be kept as small as possible.  In particular, it is a good idea to
 put code that does not need to be run for every single shell behind
 a test of the form `@t{if [[ -o rcs ]]; then ...}' so that it will not
@@ -1088,11 +1089,11 @@ be executed when zsh is invoked with the `@t{-f}' option.
 @item @t{$ZDOTDIR/.zlogin}
 @item @t{$ZDOTDIR/.zlogout}
 @item @t{$@{TMPPREFIX@}*}   (default is /tmp/zsh*)
-@item @t{/etc/zshenv}
-@item @t{/etc/zprofile}
-@item @t{/etc/zshrc}
-@item @t{/etc/zlogin}
-@item @t{/etc/zlogout}    (installation-specific - @t{/etc} is the default)
+@item @t{/etc/zsh/zshenv}
+@item @t{/etc/zsh/zprofile}
+@item @t{/etc/zsh/zshrc}
+@item @t{/etc/zsh/zlogin}
+@item @t{/etc/zsh/zlogout}    (installation-specific - @t{/etc} is the default)
 @item
 @end table
 @c (avoiding a yodl bug)
@@ -3266,6 +3267,31 @@ Start (stop) standout mode.
 Include a string as a literal escape sequence.
 The string within the braces should not change the cursor
 position.  Brace pairs can nest.
+
+@noindent
+A positive numeric argument between the @t{%} and the %%(@{) is treated as
+described for @t{%G} below.
+
+@item @t{%G}
+Within a @t{%@{}...@t{%@}} sequence, include a `glitch': that is, assume
+that a single character width will be output.  This is useful when
+outputting characters that otherwise cannot be correctly handled by the
+shell, such as the alternate character set on some terminals.
+The characters in question can be included within a @t{%@{}...@t{%@}}
+sequence together with the appropriate number of @t{%G} sequences to
+indicate the correct width.  An integer between the `@t{%}' and `@t{G}'
+indicates a character width other than one.  Hence @t{%@{}@var{seq}@t{%2G%@}}
+outputs @var{seq} and assumes it takes up the width of two standard
+characters.
+
+@noindent
+Multiple uses of @t{%G} accumulate in the obvious fashion; the position
+of the @t{%G} is unimportant.  Negative integers are not handled.
+
+@noindent
+Note that when prompt truncation is in use it is advisable to divide up
+output into single characters within each @t{%@{}...@t{%@}} group so that
+the correct truncation point can be found.
 
 @end table
 
@@ -6140,23 +6166,6 @@ example (assuming the option @t{KSH_ARRAYS} is not in effect):
 
 @noindent
 If @t{KSH_ARRAYS} is in effect, the @t{-le} should be replaced by @t{-lt}.
-
-@noindent
-Note that in subscripts with both `@t{r}' and `@t{R}' pattern characters
-are active even if they were substituted for a parameter (regardless
-of the setting of @t{GLOB_SUBST} which controls this feature in normal
-pattern matching).  It is therefore necessary to quote pattern characters
-for an exact string match.  Given a string in @t{$key}, and assuming
-the @t{EXTENDED_GLOB} option is set, the following is sufficient to
-match an element of an array @t{$array} containing exactly the value of
-@t{$key}:
-
-@noindent
-@example
-key2=$@{key//(#m)[\][()\\*?#<>~^]/\\$MATCH@}
-print $@{array[(R)$key2]@}
-@end example
-
 @item @t{R}
 Like `@t{r}', but gives the last match.  For associative arrays, gives
 all possible matches. May be used for assigning to ordinary array
@@ -6165,17 +6174,35 @@ normal arrays this has the effect of returning the element corresponding to
 subscript 0; this is empty unless one of the options @t{KSH_ARRAYS} or
 @t{KSH_ZERO_SUBSCRIPT} is in effect.
 
+@noindent
+Note that in subscripts with both `@t{r}' and `@t{R}' pattern characters
+are active even if they were substituted for a parameter (regardless of the
+setting of @t{GLOB_SUBST} which controls this feature in normal pattern
+matching).  The flag `@t{e}' can be added to inhibit pattern matching.  As
+this flag does not inhibit other forms of substitution, care is still
+required; using a parameter to hold the key has the desired effect:
+
+@noindent
+@example
+key2='original key'
+print $@{array[(Re)$key2]@}
+@end example
+
+
 @item @t{i}
 Like `@t{r}', but gives the index of the match instead; this may not be
 combined with a second argument.  On the left side of an assignment,
 behaves like `@t{r}'.  For associative arrays, the key part of each pair
 is compared to the pattern, and the first matching key found is the
-result.  On failure substitutes one more than the last currently
-valid index, as discussed under the description of `@t{r}'.
+result.  On failure substitutes the length of the array plus one, as
+discussed under the description of `@t{r}', or the empty string for an
+associative array.
 
 @item @t{I}
 Like `@t{i}', but gives the index of the last match, or all possible
-matching keys in an associative array.  On failure substitutes 0.
+matching keys in an associative array.  On failure substitutes 0, or
+the empty string for an associative array.  This flag is best when
+testing for values or keys that do not exist.
 
 @item @t{k}
 If used in a subscript on an associative array, this flag causes the keys
@@ -6202,11 +6229,16 @@ evaluates to @var{n}).  This flag is ignored when the array is associative.
 The delimiter character @t{:} is arbitrary; see above.
 
 @item @t{e}
-This flag has no effect and for ordinary arrays is retained for backward
-compatibility only.  For associative arrays, this flag can be used to
-force @t{*} or @t{@@} to be interpreted as a single key rather than as a
-reference to all values.  This flag may be used on the left side of an
-assignment.
+This flag causes any pattern matching that would be performed on the
+subscript to use plain string matching instead.  Hence
+`@t{$@{array[(re)*]@}}' matches only the array element whose value is @t{*}.
+Note that other forms of substitution such as parameter substitution are
+not inhibited.
+
+@noindent
+This flag can also be used to force @t{*} or @t{@@} to be interpreted as
+a single key rather than as a reference to all values.  It may be used
+for either purpose on the left side of an assignment.
 
 @end table
 
@@ -7726,10 +7758,10 @@ assignments will not undergo word splitting.
 Append a trailing `@t{/}' to all directory
 names resulting from filename generation (globbing).
 
-@pindex MULTIBYTE <D>
+@pindex MULTIBYTE
 @cindex characters, multibyte, in expansion and globbing
 @cindex multibyte characters, in expansion and globbing
-@item @t{MULTIBYTE}
+@item @t{MULTIBYTE} <C> <K> <Z>
 Respect multibyte characters when found in strings.
 When this option is set, strings are examined using the
 system library to determine how many bytes form a character, depending
@@ -7738,8 +7770,10 @@ pattern matching, parameter values and various delimiters.
 
 @noindent
 The option is on by default if the shell was compiled with
-@t{MULTIBYTE_SUPPORT}; otherwise it is off by default and has no effect if
-turned on.
+@t{MULTIBYTE_SUPPORT} except in @t{sh} emulation; otherwise it is off by
+default and has no effect if turned on.  The mode is off in @t{sh}
+emulation for compatibility but for interative use may need to be
+turned on if the terminal interprets multibyte characters.
 
 @noindent
 If the option is off a single byte is always treated as a single
@@ -8032,19 +8066,19 @@ most portable way to achieve this behaviour.
 @cindex startup files, global, inhibiting
 @cindex files, global startup, inhibiting
 @item @t{GLOBAL_RCS} (@t{-d}) <D>
-If this option is unset, the startup files @t{/etc/zprofile},
-@t{/etc/zshrc}, @t{/etc/zlogin} and @t{/etc/zlogout} will not be run.  It
+If this option is unset, the startup files @t{/etc/zsh/zprofile},
+@t{/etc/zsh/zshrc}, @t{/etc/zsh/zlogin} and @t{/etc/zsh/zlogout} will not be run.  It
 can be disabled and re-enabled at any time, including inside local startup
 files (@t{.zshrc}, etc.).
 
 @pindex RCS
 @cindex startup files, sourcing
 @item @t{RCS} (@t{+f}) <D>
-After @t{/etc/zshenv} is sourced on startup, source the
-@t{.zshenv}, @t{/etc/zprofile}, @t{.zprofile},
-@t{/etc/zshrc}, @t{.zshrc}, @t{/etc/zlogin}, @t{.zlogin}, and @t{.zlogout}
+After @t{/etc/zsh/zshenv} is sourced on startup, source the
+@t{.zshenv}, @t{/etc/zsh/zprofile}, @t{.zprofile},
+@t{/etc/zsh/zshrc}, @t{.zshrc}, @t{/etc/zsh/zlogin}, @t{.zlogin}, and @t{.zlogout}
 files, as described in @ref{Files}.
-If this option is unset, the @t{/etc/zshenv} file is still sourced, but any
+If this option is unset, the @t{/etc/zsh/zshenv} file is still sourced, but any
 of the others will not be; it can be set at any time to prevent the
 remaining startup files after the currently executing one from
 being sourced.
@@ -9237,9 +9271,9 @@ See @ref{The zsh/cap Module}.
 
 @findex cd
 @cindex directories, changing
-@item @t{cd} [ @t{-sLP} ] [ @var{arg} ]
-@itemx @t{cd} [ @t{-sLP} ] @var{old} @var{new}
-@itemx @t{cd} [ @t{-sLP} ] @{@t{+}|@t{-}@}@var{n}
+@item @t{cd} [ @t{-qsLP} ] [ @var{arg} ]
+@itemx @t{cd} [ @t{-qsLP} ] @var{old} @var{new}
+@itemx @t{cd} [ @t{-qsLP} ] @{@t{+}|@t{-}@}@var{n}
 Change the current directory.  In the first form, change the
 current directory to @var{arg}, or to the value of @t{$HOME} if
 @var{arg} is not specified.  If @var{arg} is `@t{-}', change to the
@@ -9247,7 +9281,7 @@ value of @t{$OLDPWD}, the previous directory.
 
 @noindent
 Otherwise, if @var{arg} begins with a slash, attempt to change to the
-director given by @var{arg}.
+directory given by @var{arg}.
 
 @noindent
 If @var{arg} does not begin with a slash, the behaviour depends on whether
@@ -9280,11 +9314,18 @@ If the @t{PUSHD_MINUS} option is set, the meanings of `@t{+}'
 and `@t{-}' in this context are swapped.
 
 @noindent
+If the @t{-q} (quiet) option is specified, the hook function @t{chpwd}
+and the functions in the array @t{chpwd_functions} are not called.
+This is useful for calls to @t{cd} that do not change the environment
+seen by an interactive user.
+
+@noindent
 If the @t{-s} option is specified, @t{cd} refuses to change the current
 directory if the given pathname contains symlinks.  If the @t{-P} option
 is given or the @t{CHASE_LINKS} option is set, symbolic links are resolved
 to their true values.  If the @t{-L} option is given symbolic links are
-followed regardless of the state of the @t{CHASE_LINKS} option.
+retained in the directory (and not resolved) regardless of the state of
+the @t{CHASE_LINKS} option.
 
 @findex chdir
 @item @t{chdir}
@@ -9992,7 +10033,7 @@ Same as @t{exit}, except that it only works in a login shell.
 See @ref{Precommand Modifiers}.
 
 @findex popd
-@item @t{popd} [ @{@t{+}|@t{-}@}@var{n} ]
+@item @t{popd} [ [-q] @{@t{+}|@t{-}@}@var{n} ]
 Remove an entry from the directory stack, and perform a @t{cd} to
 the new top directory.  With no argument, the current top entry is
 removed.  An argument of the form `@t{+}@var{n}' identifies a stack
@@ -10001,6 +10042,12 @@ starting with zero.  An argument of the form @t{-n} counts from the right.
 @pindex PUSHD_MINUS, use of
 If the @t{PUSHD_MINUS} option is set, the meanings of `@t{+}' and
 `@t{-}' in this context are swapped.
+
+@noindent
+If the @t{-q} (quiet) option is specified, the hook function @t{chpwd}
+and the functions in the array @t{$chpwd_functions} are not called,
+and the new directory stack is not printed.  This is useful for calls to
+@t{popd} that do not change the environment seen by an interactive user.
 
 @findex print
 @item @t{print} [ @t{-abcDilmnNoOpPrsz} ] [ @t{-u} @var{n} ] [ @t{-f} @var{format} ] [ @t{-C} @var{cols} ]
@@ -10131,9 +10178,9 @@ zero or an empty string had been specified as the argument.
 @pindex PUSHD_MINUS, use of
 @pindex CDABLE_VARS, use of
 @pindex PUSHD_SILENT, use of
-@item @t{pushd} [ @t{-sLP} ] [ @var{arg} ]
-@itemx @t{pushd} [ @t{-sLP} ] @var{old} @var{new}
-@itemx @t{pushd} [ @t{-sLP} ] @{@t{+}|@t{-}@}@var{n}
+@item @t{pushd} [ @t{-qsLP} ] [ @var{arg} ]
+@itemx @t{pushd} [ @t{-qsLP} ] @var{old} @var{new}
+@itemx @t{pushd} [ @t{-qsLP} ] @{@t{+}|@t{-}@}@var{n}
 Change the current directory, and push the old current directory
 onto the directory stack.  In the first form, change the
 current directory to @var{arg}.
@@ -10154,8 +10201,15 @@ from the right.  If the @t{PUSHD_MINUS} option is set, the meanings
 of `@t{+}' and `@t{-}' in this context are swapped.
 
 @noindent
-If the option @t{PUSHD_SILENT} is not set, the directory
-stack will be printed after a @t{pushd} is performed.
+If the @t{-q} (quiet) option is specified, the hook function @t{chpwd}
+and the functions in the array @t{$chpwd_functions} are not called,
+and the new directory stack is not printed.  This is useful for calls to
+@t{pushd} that do not change the environment seen by an interactive user.
+
+@noindent
+If the option @t{-q} is not specified and the shell option @t{PUSHD_SILENT}
+is not set, the directory stack will be printed after a @t{pushd} is
+performed.
 
 @noindent
 The options @t{-s}, @t{-L} and @t{-P} have the same meanings as for the
@@ -16219,6 +16273,16 @@ bindable command.  If it set to `true' and the word on the command
 line is not the name of an alias, matching alias names will be
 completed.
 
+@kindex complete-options, completion style
+@item @t{complete-options}
+This is used by the completer for @t{cd}, @t{chdir} and @t{pushd}.
+For these commands a @t{-} is used to introduce a directory stack entry
+and completion of these is far more common than completing options.
+Hence unless the value of this style is true options will not be
+completed, even after an initial @t{-}.  If it is true, options will
+be completed after an initial @t{-} unless there is a preceeding
+@t{-}@t{-} on the command line.
+
 @kindex completer, completion style
 @item @t{completer}
 The strings given as the value of this style provide the names of the
@@ -16263,6 +16327,15 @@ and the @t{$fignore} array and then without ignoring matches.
 This style is used by the @t{_list} completer function to decide if
 insertion of matches should be delayed unconditionally. The default is 
 `true'.
+
+@kindex delimiters, completion style
+@item @t{delimiters}
+This style is used when adding a delimiter for use with history
+modifiers or glob qualifiers that have delimited arguments.  It is
+an array of preferred delimiters to add.  Non-special characters are
+preferred as the completion system may otherwise become confused.
+The default list is @t{:}, @t{+}, @t{/}, @t{-}, @t{%}.  The list
+may be empty to force a delimiter to be typed.
 
 @kindex disabled, completion style
 @item @t{disabled}
@@ -16724,6 +16797,12 @@ completed, not when completing names of files.
 Excluded values act in a similar fashion to values of the
 @t{ignored-patterns} style, so they can be restored to consideration by
 the @t{_ignored} completer.
+
+@kindex extra-verbose, completion style
+@item @t{extra-verbose}
+If set, the completion listing is more verbose at the cost of
+a probable decrease in completion speed.  Completion performance
+will suffer if this style is set to `true'.
 
 @kindex ignored-patterns, completion style
 @item @t{ignored-patterns}
@@ -22568,7 +22647,7 @@ The @t{zsh/newuser} module is loaded at boot if it is
 available, the @t{RCS} option is set, and the @t{PRIVILEGED} option is not
 set (all three are true by default).  This takes
 place immediately after commands in the global @t{zshenv} file (typically
-@t{/etc/zshenv}), if any, have been executed.  If the module is not
+@t{/etc/zsh/zshenv}), if any, have been executed.  If the module is not
 available it is silently ignored by the shell; the module may safely be
 removed from @t{$MODULE_PATH} by the administrator if it is not required.
 
@@ -22602,7 +22681,7 @@ The @t{zsh/newuser} module is then unconditionally unloaded.
 
 @noindent
 Note that it is possible to achieve exactly the same effect as the
-@t{zsh/newuser} module by adding code to @t{/etc/zshenv}.  The module
+@t{zsh/newuser} module by adding code to @t{/etc/zsh/zshenv}.  The module
 exists simply to allow the shell to make arrangements for new users without
 the need for intervention by package maintainers and system administrators.
 
@@ -23060,6 +23139,7 @@ two possible names:
 
 @noindent
 @table @asis
+@findex zstat
 @findex stat
 @cindex files, listing
 @cindex files, examining
@@ -23070,7 +23150,7 @@ man page stat(2)).  The same command is provided with two names; as
 the name @t{stat} is often used by an external command it is recommended
 that only the @t{zstat} form of the command is used.  This can be
 arranged by loading the module with the command `@t{zmodload -F zsh/stat
-zstat}'.
+b:zstat}'.
 
 @noindent
 If the @t{stat} call fails, the appropriate system error message
@@ -25413,6 +25493,11 @@ calendar file as it is already locked.  These options will not usually be
 needed by users.
 
 @noindent
+If the style @t{reformat-date} is true, the date and time of the
+new entry will be rewritten into the standard date format:  see
+the descriptions of this style and the style @t{date-format}.
+
+@noindent
 The function can use a unique identifier stored with each event to ensure
 that updates to existing events are treated correctly.  The entry
 should contain the word @t{UID}, followed by whitespace, followed by
@@ -25452,27 +25537,22 @@ parameter @t{reply} to an empty associative array.  Otherwise,
 it returns status 0 and sets elements of the associative
 array @t{reply} as follows:
 @table @asis
-@item time
-The time as a string of digits in the same units as
+@item timeNL()The time as a string of digits in the same units as
 @t{$EPOCHSECONDS}
 @item text1
 The text from the line not including the date and time of the
 event, but including any @t{WARN} or @t{RPT} keywords and values.
-@item warntime
-Any warning time given by the @t{WARN} keyword as a string
+@item warntimeNL()Any warning time given by the @t{WARN} keyword as a string
 of digits containing the time at which to warn in the same units as
 @t{$EPOCHSECONDS}.  (Note this is an absolute time, not the relative time
 passed down.)  Not set no @t{WARN} keyword and value were
 matched.
-@item warnstr
-The raw string matched after the @t{WARN} keyword, else unset.
-@item rpttime
-Any recurrence time given by the @t{RPT} keyword as a string
+@item warnstrNL()The raw string matched after the @t{WARN} keyword, else unset.
+@item rpttimeNL()Any recurrence time given by the @t{RPT} keyword as a string
 of digits containing the time of the recurrence in the same units
 as @t{$EPOCHSECONDS}.  (Note this is an absolute time.)  Not set if
 no @t{RPT} keyword and value were matched.
-@item rptstr
-The raw string matched after the @t{RPT} keyword, else unset.
+@item rptstrNL()The raw string matched after the @t{RPT} keyword, else unset.
 @item text2
 The text from the line after removal of the date and any
 keywords and values.
@@ -25650,6 +25730,14 @@ The location of the file to which events which have passed are appended.
 The default is the calendar file location with the suffix @t{.done}.
 The style may be set to an empty string in which case a "done" file
 will not be maintained.
+
+@kindex reformat-date
+@item @t{reformat-date}
+Boolean, used by @t{calendar_add}.  If it is true, the date and time
+of new entries added to the calendar will be reformatted to the format
+given by the style @t{date-format} or its default.  Only the date and
+time of the event itself is reformatted; any subsidiary dates and times
+such as those associated with repeat and warning times are left alone.
 
 @kindex show-prog
 @item @t{show-prog}
@@ -27590,7 +27678,7 @@ distribution in your home directory, you would use the commands:
 mkdir ~/zsh_help
 cd ~/zsh_help
 man zshall | colcrt - | \ 
-perl ~/zsh-4.3.5/Util/helpfiles
+perl ~/zsh-4.3.6/Util/helpfiles
 @end example
 
 @noindent
@@ -27746,7 +27834,7 @@ Run @t{zkbd} either as an autoloaded function, or as a shell script:
 
 @noindent
 @example
-zsh -f ~/zsh-4.3.5/Functions/Misc/zkbd
+zsh -f ~/zsh-4.3.6/Functions/Misc/zkbd
 @end example
 
 @noindent
@@ -27811,7 +27899,7 @@ command and redirect the output into a file:
 
 @noindent
 @example
-. ~/zsh-4.3.5/Util/reporter > zsh.report
+. ~/zsh-4.3.6/Util/reporter > zsh.report
 @end example
 
 @noindent
@@ -28588,7 +28676,7 @@ Copyright
 Spanish feminine ordinal indicator
 @item @t{<<}
 Left guillemet
-@item @t{--}
+@item @t{-}@t{-}
 Soft hyphen
 @item @t{Rg}
 Registered trade mark
@@ -28689,7 +28777,7 @@ clubs
 @item @t{Md}, @t{M8}, @t{M2}, @t{Mb}, @t{Mx}, @t{MX}
 Musical notation:
 crotchet (quarter note), quaver (eighth note), semiquavers (sixteenth
-notes), flag sign, natural signa, sharp sign
+notes), flag sign, natural sign, sharp sign
 @item @t{Fm}, @t{Ml}
 Female, male
 @end table
