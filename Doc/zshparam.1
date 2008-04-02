@@ -1,4 +1,4 @@
-.TH "ZSHPARAM" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHPARAM" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshparam \- zsh parameters
 .\" Yodl file: Zsh/params.yo
@@ -262,23 +262,6 @@ example (assuming the option \fBKSH_ARRAYS\fP is not in effect):
 .RE
 .PP
 If \fBKSH_ARRAYS\fP is in effect, the \fB\-le\fP should be replaced by \fB\-lt\fP\&.
-.PP
-Note that in subscripts with both `\fBr\fP\&' and `\fBR\fP' pattern characters
-are active even if they were substituted for a parameter (regardless
-of the setting of \fBGLOB_SUBST\fP which controls this feature in normal
-pattern matching)\&.  It is therefore necessary to quote pattern characters
-for an exact string match\&.  Given a string in \fB$key\fP, and assuming
-the \fBEXTENDED_GLOB\fP option is set, the following is sufficient to
-match an element of an array \fB$array\fP containing exactly the value of
-\fB$key\fP:
-.PP
-.RS
-.nf
-\fBkey2=${key//(#m)[\e][()\e\e*?#<>~^]/\e\e$MATCH}
-print ${array[(R)$key2]}\fP
-.fi
-.RE
-.RE
 .TP
 \fBR\fP
 Like `\fBr\fP\&', but gives the last match\&.  For associative arrays, gives
@@ -287,18 +270,38 @@ elements, but not for assigning to associative arrays\&.  On failure, for
 normal arrays this has the effect of returning the element corresponding to
 subscript 0; this is empty unless one of the options \fBKSH_ARRAYS\fP or
 \fBKSH_ZERO_SUBSCRIPT\fP is in effect\&.
+.RS
+.PP
+Note that in subscripts with both `\fBr\fP\&' and `\fBR\fP' pattern characters
+are active even if they were substituted for a parameter (regardless of the
+setting of \fBGLOB_SUBST\fP which controls this feature in normal pattern
+matching)\&.  The flag `\fBe\fP\&' can be added to inhibit pattern matching\&.  As
+this flag does not inhibit other forms of substitution, care is still
+required; using a parameter to hold the key has the desired effect:
+.PP
+.RS
+.nf
+\fBkey2=\&'original key'
+print ${array[(Re)$key2]}\fP
+.fi
+.RE
+.RE
+.RE
 .TP
 \fBi\fP
 Like `\fBr\fP\&', but gives the index of the match instead; this may not be
 combined with a second argument\&.  On the left side of an assignment,
 behaves like `\fBr\fP\&'\&.  For associative arrays, the key part of each pair
 is compared to the pattern, and the first matching key found is the
-result\&.  On failure substitutes one more than the last currently
-valid index, as discussed under the description of `\fBr\fP\&'\&.
+result\&.  On failure substitutes the length of the array plus one, as
+discussed under the description of `\fBr\fP\&', or the empty string for an
+associative array\&.
 .TP
 \fBI\fP
 Like `\fBi\fP\&', but gives the index of the last match, or all possible
-matching keys in an associative array\&.  On failure substitutes 0\&.
+matching keys in an associative array\&.  On failure substitutes 0, or
+the empty string for an associative array\&.  This flag is best when
+testing for values or keys that do not exist\&.
 .TP
 \fBk\fP
 If used in a subscript on an associative array, this flag causes the keys
@@ -325,11 +328,18 @@ evaluates to \fIn\fP)\&.  This flag is ignored when the array is associative\&.
 The delimiter character \fB:\fP is arbitrary; see above\&.
 .TP
 \fBe\fP
-This flag has no effect and for ordinary arrays is retained for backward
-compatibility only\&.  For associative arrays, this flag can be used to
-force \fB*\fP or \fB@\fP to be interpreted as a single key rather than as a
-reference to all values\&.  This flag may be used on the left side of an
-assignment\&.
+This flag causes any pattern matching that would be performed on the
+subscript to use plain string matching instead\&.  Hence
+`\fB${array[(re)*]}\fP\&' matches only the array element whose value is \fB*\fP\&.
+Note that other forms of substitution such as parameter substitution are
+not inhibited\&.
+.RS
+.PP
+This flag can also be used to force \fB*\fP or \fB@\fP to be interpreted as
+a single key rather than as a reference to all values\&.  It may be used
+for either purpose on the left side of an assignment\&.
+.RE
+.RE
 .PP
 See \fIParameter Expansion Flags\fP (\fIzshexpn\fP(1)) for additional ways to manipulate the results of array subscripting\&.
 .PP

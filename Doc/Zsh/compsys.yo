@@ -1221,6 +1221,16 @@ bindable command.  If it set to `true' and the word on the command
 line is not the name of an alias, matching alias names will be
 completed.
 )
+kindex(complete-options, completion style)
+item(tt(complete-options))(
+This is used by the completer for tt(cd), tt(chdir) and tt(pushd).
+For these commands a tt(-) is used to introduce a directory stack entry
+and completion of these is far more common than completing options.
+Hence unless the value of this style is true options will not be
+completed, even after an initial tt(-).  If it is true, options will
+be completed after an initial tt(-) unless there is a preceeding
+tt(-)tt(-) on the command line.
+)
 kindex(completer, completion style)
 item(tt(completer))(
 The strings given as the value of this style provide the names of the
@@ -1261,6 +1271,15 @@ item(tt(condition))(
 This style is used by the tt(_list) completer function to decide if
 insertion of matches should be delayed unconditionally. The default is 
 `true'.
+)
+kindex(delimiters, completion style)
+item(tt(delimiters))(
+This style is used when adding a delimiter for use with history
+modifiers or glob qualifiers that have delimited arguments.  It is
+an array of preferred delimiters to add.  Non-special characters are
+preferred as the completion system may otherwise become confused.
+The default list is tt(:), tt(+), tt(/), tt(-), tt(%).  The list
+may be empty to force a delimiter to be typed.
 )
 kindex(disabled, completion style)
 item(tt(disabled))(
@@ -1662,6 +1681,12 @@ enditem()
 Excluded values act in a similar fashion to values of the
 tt(ignored-patterns) style, so they can be restored to consideration by
 the tt(_ignored) completer.
+)
+kindex(extra-verbose, completion style)
+item(tt(extra-verbose))(
+If set, the completion listing is more verbose at the cost of
+a probable decrease in completion speed.  Completion performance
+will suffer if this style is set to `true'.
 )
 kindex(ignored-patterns, completion style)
 item(tt(ignored-patterns))(

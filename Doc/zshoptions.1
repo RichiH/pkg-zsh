@@ -1,4 +1,4 @@
-.TH "ZSHOPTIONS" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHOPTIONS" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshoptions \- zsh options
 .\" Yodl file: Zsh/options.yo
@@ -323,14 +323,14 @@ Note that this happens anyway with \fBtypeset\fP and similar statements\&.
 .PP
 This option respects the setting of the \fBKSH_TYPESET\fP option\&.  In other
 words, if both options are in effect, arguments looking like
-assignments will not undergo wordsplitting\&.
+assignments will not undergo word splitting\&.
 .RE
 .TP
 \fBMARK_DIRS\fP (\fB\-8\fP, ksh: \fB\-X\fP)
 Append a trailing `\fB/\fP\&' to all directory
 names resulting from filename generation (globbing)\&.
 .TP
-\fBMULTIBYTE\fP
+\fBMULTIBYTE\fP <C> <K> <Z>
 Respect multibyte characters when found in strings\&.
 When this option is set, strings are examined using the
 system library to determine how many bytes form a character, depending
@@ -339,8 +339,10 @@ pattern matching, parameter values and various delimiters\&.
 .RS
 .PP
 The option is on by default if the shell was compiled with
-\fBMULTIBYTE_SUPPORT\fP; otherwise it is off by default and has no effect if
-turned on\&.
+\fBMULTIBYTE_SUPPORT\fP except in \fBsh\fP emulation; otherwise it is off by
+default and has no effect if turned on\&.  The mode is off in \fBsh\fP
+emulation for compatibility but for interative use may need to be
+turned on if the terminal interprets multibyte characters\&.
 .PP
 If the option is off a single byte is always treated as a single
 character\&.  This setting is designed purely for examining strings

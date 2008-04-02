@@ -358,11 +358,17 @@
 /* Define to 1 if you have the <ncursesw/ncurses.h> header file. */
 #undef HAVE_NCURSESW_NCURSES_H
 
+/* Define to 1 if you have the <ncursesw/term.h> header file. */
+#undef HAVE_NCURSESW_TERM_H
+
 /* Define to 1 if you have the <ncurses.h> header file. */
 #undef HAVE_NCURSES_H
 
 /* Define to 1 if you have the <ncurses/ncurses.h> header file. */
 #undef HAVE_NCURSES_NCURSES_H
+
+/* Define to 1 if you have the <ncurses/term.h> header file. */
+#undef HAVE_NCURSES_TERM_H
 
 /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
 #undef HAVE_NDIR_H
@@ -607,6 +613,9 @@
 
 /* Define to 1 if you have the `strstr' function. */
 #undef HAVE_STRSTR
+
+/* Define to 1 if you have the `strtoul' function. */
+#undef HAVE_STRTOUL
 
 /* Define if your system's struct direct has a member named d_ino. */
 #undef HAVE_STRUCT_DIRECT_D_INO
@@ -866,6 +875,9 @@
 /* Define as const if the declaration of iconv() needs const. */
 #undef ICONV_CONST
 
+/* Define to 1 if iconv() is linked from libiconv */
+#undef ICONV_FROM_LIBICONV
+
 /* Define to 1 if ino_t is 64 bit (for large file support). */
 #undef INO_T_IS_64_BIT
 
@@ -989,9 +1001,6 @@
    */
 #undef SYSV_SIGNALS
 
-/* Define if term.h chokes without curses.h. */
-#undef TERM_H_NEEDS_CURSES_H
-
 /* Define to 1 if tgetent() accepts NULL as a buffer. */
 #undef TGETENT_ACCEPTS_NULL
 
@@ -1032,8 +1041,11 @@
    tables. This turns on the `hashinfo' builtin. */
 #undef ZSH_HASH_DEBUG
 
-/* Define to 1 to ignore any ncurses library headers found on the system. */
-#undef ZSH_IGNORE_NCURSES
+/* Define to 1 if some variant of a curses header can be included */
+#undef ZSH_HAVE_CURSES_H
+
+/* Define to 1 if some variant of term.h can be included */
+#undef ZSH_HAVE_TERM_H
 
 /* Define to 1 if you want to use zsh's own memory allocation routines */
 #undef ZSH_MEM

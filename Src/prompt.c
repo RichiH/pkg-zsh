@@ -472,6 +472,19 @@ putpromptchar(int doprint, int endchar)
 		    addbufspc(1);
 		    *bp++ = Inpar;
 		}
+		if (arg <= 0)
+		    break;
+		/* else */
+		/* FALLTHROUGH */
+	    case 'G':
+		if (arg > 0) {
+		    addbufspc(arg);
+		    while (arg--)
+			*bp++ = Nularg;
+		} else {
+		    addbufspc(1);
+		    *bp++ = Nularg;
+		}
 		break;
 	    case /*{*/ '}':
 		if (trunccount && trunccount >= dontcount)
@@ -938,9 +951,11 @@ countprompt(char *str, int *wp, int *hp, int overf)
 		break;
 	    case MB_INVALID:
 		memset(&mbs, 0, sizeof mbs);
-		/* FALL THROUGH */
+		/* Invalid character: assume single width. */
+		multi = 0;
+		w++;
+		break;
 	    case 0:
-		/* Invalid character or null: assume no output. */
 		multi = 0;
 		break;
 	    default:
@@ -1114,14 +1129,19 @@ prompttrunc(int arg, int truncchar, int doprint, int endchar)
 			    /*
 			     * Text marked as invisible: copy
 			     * regardless, since we don't know what
-			     * this does but it shouldn't affect
-			     * the width.
+			     * this does.  It only affects the width
+			     * if there are Nularg's present.
+			     * However, even in that case we
+			     * can't break the sequence down, so
+			     * we still loop over the entire group.
 			     */
 			    for (;;) {
 				*ptr++ = *fulltextptr;
 				if (*fulltextptr == Outpar ||
 				    *fulltextptr == '\0')
 				    break;
+				if (*fulltextptr == Nularg)
+				    remw--;
 				fulltextptr++;
 			    }
 			} else {
@@ -1196,8 +1216,15 @@ prompttrunc(int arg, int truncchar, int doprint, int endchar)
 
 		    while (maxwidth > 0 && *skiptext) {
 			if (*skiptext == Inpar) {
-			    for (; *skiptext != Outpar && *skiptext;
-				 skiptext++);
+			    /* see comment on left truncation above */
+			    for (;;) {
+				if (*skiptext == Outpar ||
+				    *skiptext == '\0')
+				    break;
+				if (*skiptext == Nularg)
+				    maxwidth--;
+				skiptext++;
+			    }
 			} else {
 #ifdef MULTIBYTE_SUPPORT
 			    char inchar;

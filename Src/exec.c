@@ -46,7 +46,10 @@ enum {
 /**/
 int noerrexit;
 
-/* suppress error messages */
+/*
+ * noerrs = 1: suppress error messages
+ * noerrs = 2: don't set errflag on parse error, either
+ */
  
 /**/
 mod_export int noerrs;
@@ -3113,6 +3116,8 @@ restore_params(LinkList restorelist, LinkList removelist)
 		DPUTS(!tpm || PM_TYPE(pm->node.flags) != PM_TYPE(tpm->node.flags) ||
 		      !(pm->node.flags & PM_SPECIAL),
 		      "BUG: in restoring special parameters");
+		if (!pm->env && tpm->env)
+		    delenv(tpm);
 		tpm->node.flags = pm->node.flags;
 		switch (PM_TYPE(pm->node.flags)) {
 		case PM_SCALAR:

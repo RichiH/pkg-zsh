@@ -1395,6 +1395,8 @@ _git-bisect () {
     reset:"finish bisection search and return to the given branch (or master)"
     start:"reset bisection state and start a new bisection"
     visualize:"show the remaining revisions in gitk"
+    skip:"choose a nearby commit"
+    run:"run evaluation script"
   )
 
   if (( CURRENT == 2 )); then
@@ -1405,7 +1407,7 @@ _git-bisect () {
         _arguments \
           '2:revision:__git_commits' && ret=0
         ;;
-      (good)
+      (good|skip)
         _arguments \
           '*:revision:__git_commits' && ret=0
         ;;
@@ -1417,6 +1419,11 @@ _git-bisect () {
         _arguments \
           '2:branch:__git_heads' && ret=0
         ;;
+      (run)
+        _arguments \
+          '*::arguments: _normal' && ret=0
+        ;;
+
       (*)
         _nothing
         ;;
@@ -2639,7 +2646,7 @@ __git_unmerged_files () {
 __git_changed_files () {
   local -a files
 
-  files=(${(ps:\0:)"$(_call_program files git diff-index -z --name-only HEAD 2>/dev/null)"})
+  files=(${(ps:\0:)"$(_call_program files git diff-index -z --name-only --no-color HEAD 2>/dev/null)"})
   __git_command_successful || return
 
   _wanted files expl 'index file' _multi_parts $@ - / files
@@ -2823,7 +2830,7 @@ __git_heads () {
   local expl
   declare -a branch_names
 
-  branch_names=(${${(f)"$(_call_program heads git branch -a 2>/dev/null)"}#[* ] })
+  branch_names=(${${(f)"$(_call_program heads git branch --no-color -a 2>/dev/null)"}#[* ] })
   __git_command_successful || return
 
   _wanted heads expl branch-name compadd $* - $branch_names
@@ -2887,7 +2894,7 @@ __git_branch_names () {
   local expl
   declare -a branch_names
 
-  branch_names=(${${(f)"$(_call_program branch-names git branch 2>/dev/null)"}#[* ] })
+  branch_names=(${${(f)"$(_call_program branch-names git branch --no-color 2>/dev/null)"}#[* ] })
   __git_command_successful || return
 
   _wanted branch-names expl branch-name compadd $* - $branch_names
@@ -4131,7 +4138,7 @@ __git_is_indexed () {
     unset tmpwords
   fi
 
-  if [[ $words[1] == git ]]; then
+  if [[ $service == git ]]; then
     local state line
     declare -A opt_args
     _arguments -C \
@@ -4153,7 +4160,7 @@ __git_is_indexed () {
         ;;
     esac
   else
-    _call_function ret _$words[1]
+    _call_function ret _$service
   fi
 }
 

@@ -1,4 +1,4 @@
-.TH "ZSHMODULES" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHMODULES" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshmodules \- zsh loadable modules
 .\" Yodl file: Zsh/modules.yo
@@ -856,7 +856,7 @@ arrow keys return the name of the key in the parameter \fIkparam\fP\&.  The
 key names are the macros defined in the \fBcurses\&.h\fP or \fBncurses\&.h\fP
 with the prefix `\fBKEY_\fP\&' removed; see also the description of the
 parameter \fBzcurses_keycodes\fP below\&.  Other keys cause a value to be
-set in \fIparam\fP as before\&.  On a succesful return only one of
+set in \fIparam\fP as before\&.  On a successful return only one of
 \fIparam\fP or \fIkparam\fP contains a non\-empty string; the other is set
 to an empty string\&.
 .PP
@@ -1388,7 +1388,7 @@ The \fBzsh/newuser\fP module is then unconditionally unloaded\&.
 Note that it is possible to achieve exactly the same effect as the
 \fBzsh/newuser\fP module by adding code to \fB/etc/zshenv\fP\&.  The module
 exists simply to allow the shell to make arrangements for new users without
-the need for invervention by package maintainers and system administrators\&.
+the need for intervention by package maintainers and system administrators\&.
 .PP
 The script supplied with the module invokes the shell function
 \fBzsh\-newuser\-install\fP\&.  This may be invoked directly by the user
@@ -1691,7 +1691,7 @@ shown when \fBsched\fP is run with no arguments (provided that the
 consists of the scheduled time in seconds since the epoch
 (see the section `The zsh/datetime Module\&' for facilities for
 using this number), followed by a colon, followed by any options
-(which may be empty but will be preceeded by a `\fB\-\fP\&' otherwise),
+(which may be empty but will be preceded by a `\fB\-\fP\&' otherwise),
 followed by a colon, followed by the command to be executed\&.
 .RS
 .PP
@@ -1787,7 +1787,7 @@ The command acts as a front end to the \fBstat\fP system call (see
 the name \fBstat\fP is often used by an external command it is recommended
 that only the \fBzstat\fP form of the command is used\&.  This can be
 arranged by loading the module with the command `\fBzmodload \-F zsh/stat
-zstat\fP\&'\&.
+b:zstat\fP\&'\&.
 .RS
 .PP
 If the \fBstat\fP call fails, the appropriate system error message

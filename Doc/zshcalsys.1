@@ -1,4 +1,4 @@
-.TH "ZSHCALSYS" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHCALSYS" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshcalsys \- zsh calendar system
 .\" Yodl file: Zsh/calsys.yo
@@ -36,7 +36,7 @@ a date and time specification followed by a description of the event\&.
 .PP
 Various enhancements to this format are supported, based on the syntax
 of Emacs calendar mode\&.  An indented line indicates a continuation line
-that continues the description of the event from the preceeding line
+that continues the description of the event from the preceding line
 (note the date may not be continued in this way)\&.  An initial ampersand
 (\fB&\fP) is ignored for compatibility\&.
 .PP
@@ -256,7 +256,7 @@ passed to the function \fBcalendar\fP, the start time acts an anchor for the
 end time when the end time is relative (even if the start time is
 implicit)\&.  When examining calendar files, the scheduled event being
 examined anchors the warning time when it is given explicitly by means of
-the \fBWARN\fP keyword; likewise, the scheduled event anchors a repitition
+the \fBWARN\fP keyword; likewise, the scheduled event anchors a repetition
 period when given by the \fBRPT\fP keyword, so that specifications such as
 \fBRPT 2 months, 3rd Thursday\fP are handled properly\&.  Finally, the \fB\-R\fP
 argument to \fBcalendar_scandate\fP directly provides an anchor for relative
@@ -475,7 +475,7 @@ Adds a single event to the calendar in the appropriate location\&.
 The event can contain multiple lines, as described in
 the section Calendar File Format above\&.
 Using this function ensures that the calendar file is sorted in date
-and time order\&.  It also makes special arrangments for locking
+and time order\&.  It also makes special arrangements for locking
 the file while it is altered\&.  The old calendar is left in a file
 with the suffix \fB\&.old\fP\&.
 .RS
@@ -485,6 +485,10 @@ handled by the caller and should not be performed by \fBcalendar_add\fP\&.  The
 option \fB\-L\fP indicates that \fBcalendar_add\fP does not need to lock the
 calendar file as it is already locked\&.  These options will not usually be
 needed by users\&.
+.PP
+If the style \fBreformat\-date\fP is true, the date and time of the
+new entry will be rewritten into the standard date format:  see
+the descriptions of this style and the style \fBdate\-format\fP\&.
 .PP
 The function can use a unique identifier stored with each event to ensure
 that updates to existing events are treated correctly\&.  The entry
@@ -546,7 +550,7 @@ The raw string matched after the \fBWARN\fP keyword, else unset\&.
 .TP
 rpttime
 Any recurrence time given by the \fBRPT\fP keyword as a string
-of digits containing the time of the recurrenced in the same units
+of digits containing the time of the recurrence in the same units
 as \fB$EPOCHSECONDS\fP\&.  (Note this is an absolute time\&.)  Not set if
 no \fBRPT\fP keyword and value were matched\&.
 .TP
@@ -570,7 +574,7 @@ month, 1st Friday\&'\fP shows the date of the first Friday of next month\&.
 .RS
 .PP
 With the option \fB\-r\fP nothing is printed but the value of the date and
-timein seconds since the epoch is stored in the parameter \fBREPLY\fP\&.
+time in seconds since the epoch is stored in the parameter \fBREPLY\fP\&.
 .PP
 With the option \fB\-f\fP \fIfmt\fP the given date/time conversion format
 is passed to \fBstrftime\fP; see notes on the \fBdate\-format\fP style below\&.
@@ -602,7 +606,7 @@ disable stat\fP
 .RE
 .PP
 \fBage\fP selects files having a given modification time for use
-as a glob qualifer\&.  The format of the date is the same as that
+as a glob qualifier\&.  The format of the date is the same as that
 understood by the calendar system, described in
 the section FILE AND DATE FORMATS above\&.
 .PP
@@ -711,6 +715,13 @@ The default is the calendar file location with the suffix \fB\&.done\fP\&.
 The style may be set to an empty string in which case a "done" file
 will not be maintained\&.
 .TP
+\fBreformat\-date\fP
+Boolean, used by \fBcalendar_add\fP\&.  If it is true, the date and time
+of new entries added to the calendar will be reformatted to the format
+given by the style \fBdate\-format\fP or its default\&.  Only the date and
+time of the event itself is reformatted; any subsidiary dates and times
+such as those associated with repeat and warning times are left alone\&.
+.TP
 \fBshow\-prog\fP
 The programme run by \fBcalendar\fP for showing events\&.  It will
 be passed the start time and stop time of the events requested in seconds
@@ -751,7 +762,7 @@ same time\&.
 The files locked are appended to the array \fBlockfiles\fP, which should
 be local to the caller\&.
 .PP
-If all files were successully, status zero is returned, else status one\&.
+If all files were successfully locked, status zero is returned, else status one\&.
 .PP
 This function may be used as a general file locking function, although
 this will only work if only this mechanism is used to lock files\&.
@@ -783,7 +794,7 @@ Options:
 .PD
 \fB\-a\fP
 The date and time are anchored to the start of the argument; they
-will not be matched if there is preceeding text\&.
+will not be matched if there is preceding text\&.
 .TP
 \fB\-A\fP
 The date and time are anchored to both the start and end of the argument;

@@ -1,4 +1,4 @@
-.TH "ZSHMISC" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHMISC" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshmisc \- everything and then some
 .\" Yodl file: Zsh/grammar.yo
@@ -250,7 +250,7 @@ chunks of code are referred to as the `try block\&' and the `always block'\&.
 .RS
 .PP
 Optional newlines or semicolons may appear after the \fBalways\fP;
-note, however, that they may \fInot\fP appear between the preceeding
+note, however, that they may \fInot\fP appear between the preceding
 closing brace and the \fBalways\fP\&.
 .PP
 An `error\&' in this context is a condition such as a syntax error which
@@ -1908,6 +1908,33 @@ Start (stop) standout mode\&.
 Include a string as a literal escape sequence\&.
 The string within the braces should not change the cursor
 position\&.  Brace pairs can nest\&.
+.RS
+.PP
+A positive numeric argument between the \fB%\fP and the %%({) is treated as
+described for \fB%G\fP below\&.
+.RE
+.TP
+\fB%G\fP
+Within a \fB%{\fP\&.\&.\&.\fB%}\fP sequence, include a `glitch\&': that is, assume
+that a single character width will be output\&.  This is useful when
+outputting characters that otherwise cannot be correctly handled by the
+shell, such as the alternate character set on some terminals\&.
+The characters in question can be included within a \fB%{\fP\&.\&.\&.\fB%}\fP
+sequence together with the appropriate number of \fB%G\fP sequences to
+indicate the correct width\&.  An integer between the `\fB%\fP\&' and `\fBG\fP'
+indicates a character width other than one\&.  Hence \fB%{\fP\fIseq\fP\fB%2G%}\fP
+outputs \fIseq\fP and assumes it takes up the width of two standard
+characters\&.
+.RS
+.PP
+Multiple uses of \fB%G\fP accumulate in the obvious fashion; the position
+of the \fB%G\fP is unimportant\&.  Negative integers are not handled\&.
+.PP
+Note that when prompt truncation is in use it is advisable to divide up
+output into single characters within each \fB%{\fP\&.\&.\&.\fB%}\fP group so that
+the correct truncation point can be found\&.
+.RE
+.RE
 .PP
 .SH "CONDITIONAL SUBSTRINGS IN PROMPTS"
 .PD 0

@@ -1,4 +1,4 @@
-.TH "ZSHCONTRIB" "1" "February 1, 2008" "zsh 4\&.3\&.5"
+.TH "ZSHCONTRIB" "1" "April 2, 2008" "zsh 4\&.3\&.6"
 .SH "NAME"
 zshcontrib \- user contributions to zsh
 .\" Yodl file: Zsh/contrib.yo
@@ -44,7 +44,7 @@ distribution in your home directory, you would use the commands:
 \fBmkdir ~/zsh_help
 cd ~/zsh_help
 man zshall | colcrt \- | \e 
-perl ~/zsh\-4\&.3\&.5/Util/helpfiles\fP
+perl ~/zsh\-4\&.3\&.6/Util/helpfiles\fP
 .fi
 .RE
 .PP
@@ -179,7 +179,7 @@ Run \fBzkbd\fP either as an autoloaded function, or as a shell script:
 .PP
 .RS
 .nf
-\fBzsh \-f ~/zsh\-4\&.3\&.5/Functions/Misc/zkbd\fP
+\fBzsh \-f ~/zsh\-4\&.3\&.6/Functions/Misc/zkbd\fP
 .fi
 .RE
 .PP
@@ -235,7 +235,7 @@ command and redirect the output into a file:
 .PP
 .RS
 .nf
-\fB\&. ~/zsh\-4\&.3\&.5/Util/reporter > zsh\&.report\fP
+\fB\&. ~/zsh\-4\&.3\&.6/Util/reporter > zsh\&.report\fP
 .fi
 .RE
 .PP
@@ -881,7 +881,7 @@ Tilde\&.  (This is not \fB~\fP as RFC 1345 does not assume that
 character is present on the keyboard\&.)
 .TP
 \fB\-\fP
-Macron\&.  (A horizonal bar over the base character\&.)
+Macron\&.  (A horizontal bar over the base character\&.)
 .TP
 \fB(\fP
 Breve\&.  (A shallow dish shape over the base character\&.)
@@ -926,7 +926,7 @@ The most common characters from the Arabic, Cyrillic, Greek and Hebrew
 alphabets are available; consult RFC 1345 for the appropriate sequences\&.
 In addition, a set of two letter codes not in RFC 1345 are available for
 the double\-width characters corresponding to ASCII characters from \fB!\fP
-to \fB~\fP (0x21 to 0x7e) by preceeding the character with \fB^\fP, for
+to \fB~\fP (0x21 to 0x7e) by preceding the character with \fB^\fP, for
 example \fB^A\fP for a double\-width \fBA\fP\&.
 .PP
 The following other two\-character sequences are understood\&.
@@ -1035,7 +1035,7 @@ Spanish feminine ordinal indicator
 \fB<<\fP
 Left guillemet
 .TP
-\fB\-\-\fP
+\fB\-\fP\fB\-\fP
 Soft hyphen
 .TP
 \fBRg\fP
@@ -1180,7 +1180,7 @@ clubs
 \fBMd\fP, \fBM8\fP, \fBM2\fP, \fBMb\fP, \fBMx\fP, \fBMX\fP
 Musical notation:
 crotchet (quarter note), quaver (eighth note), semiquavers (sixteenth
-notes), flag sign, natural signa, sharp sign
+notes), flag sign, natural sign, sharp sign
 .TP
 \fBFm\fP, \fBMl\fP
 Female, male
@@ -1428,7 +1428,7 @@ For example, starting from the line:
 .PP
 and invoking \fBreplace\-pattern\fP with the source string
 `\fBf(?)n\fP\&' and
-the replacment string `\fBc\e1r\fP\&' produces the not very useful line:
+the replacement string `\fBc\e1r\fP\&' produces the not very useful line:
 .PP
 .RS
 .nf
@@ -2135,7 +2135,7 @@ example,
 .fi
 .RE
 .PP
-specifies that \fBpick\-web\-browser\fP should first look for a runing
+specifies that \fBpick\-web\-browser\fP should first look for a running
 instance of Opera, Konqueror or Firefox, in that order, and if it
 fails to find any should attempt to start Opera\&.  The default is
 \fBfirefox mozilla netscape opera konqueror\fP\&.
@@ -2151,7 +2151,7 @@ If it is set this style is used to pick the command
 used to open a page for a browser\&.  The context is
 \fB:mime:browser:new:$browser:\fP to start a new browser or
 \fB:mime:browser:running:$browser:\fP to open a URL in a browser already
-runing on the current X display, where \fB$browser\fP is the value matched
+running on the current X display, where \fB$browser\fP is the value matched
 in the \fBx\-browsers\fP or \fBtty\-browsers\fP style\&.  The escape sequence
 \fB%b\fP in the style\&'s value will be replaced by the browser, while \fB%u\fP
 will be replaced by the URL\&.  If the style is not set, the default for all

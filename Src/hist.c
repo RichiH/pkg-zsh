@@ -2192,13 +2192,13 @@ savehistfile(char *fn, int err, int writeflags)
     }
     errno = 0;
     if (writeflags & HFILE_APPEND) {
+	int fd = open(unmeta(fn), O_CREAT | O_WRONLY | O_APPEND | O_NOCTTY, 0600);
 	tmpfile = NULL;
-	out = fdopen(open(unmeta(fn),
-			O_CREAT | O_WRONLY | O_APPEND | O_NOCTTY, 0600), "a");
+	out = fd >= 0 ? fdopen(fd, "a") : NULL;
     } else if (!isset(HISTSAVEBYCOPY)) {
+	int fd = open(unmeta(fn), O_CREAT | O_WRONLY | O_TRUNC | O_NOCTTY, 0600);
 	tmpfile = NULL;
-	out = fdopen(open(unmeta(fn),
-			 O_CREAT | O_WRONLY | O_TRUNC | O_NOCTTY, 0600), "w");
+	out = fd >= 0 ? fdopen(fd, "w") : NULL;
     } else {
 	tmpfile = bicat(unmeta(fn), ".new");
 	if (unlink(tmpfile) < 0 && errno != ENOENT)
@@ -2206,13 +2206,27 @@ savehistfile(char *fn, int err, int writeflags)
 	else {
 	    struct stat sb;
 	    int old_exists = stat(unmeta(fn), &sb) == 0;
+	    uid_t euid = geteuid();
 
-	    if (old_exists && sb.st_uid != geteuid()) {
+	    if (old_exists
+#if defined HAVE_FCHMOD && defined HAVE_FCHOWN
+	     && euid
+#endif
+	     && sb.st_uid != euid) {
 		free(tmpfile);
-		tmpfile = NULL; /* Avoid an error about HISTFILE.new */
+		if (err) {
+		    if (isset(APPENDHISTORY) || isset(INCAPPENDHISTORY)
+		     || isset(SHAREHISTORY))
+			zerr("rewriting %s would change its ownership -- skipped", fn);
+		    else
+			zerr("rewriting %s would change its ownership -- history not saved", fn);
+		    err = 0; /* Don't report a generic error below. */
+		}
 		out = NULL;
-	    } else
-		out = fdopen(open(tmpfile, O_CREAT | O_WRONLY | O_EXCL, 0600), "w");
+	    } else {
+		int fd = open(tmpfile, O_CREAT | O_WRONLY | O_EXCL, 0600);
+		out = fd >= 0 ? fdopen(fd, "w") : NULL;
+	    }
 
 #ifdef HAVE_FCHMOD
 	    if (old_exists && out) {
@@ -2442,7 +2456,7 @@ bufferwords(LinkList list, char *buf, int *index)
     int num = 0, cur = -1, got = 0, ne = noerrs;
     int owb = wb, owe = we, oadx = addedx, ozp = zleparse, onc = nocomments;
     int ona = noaliases, ocs = zlemetacs, oll = zlemetall;
-    char *p;
+    char *p, *addedspaceptr;
 
     if (!list)
 	list = newlinklist();
@@ -2456,8 +2470,16 @@ bufferwords(LinkList list, char *buf, int *index)
 
 	p = (char *) zhalloc(l + 2);
 	memcpy(p, buf, l);
-	p[l] = ' ';
-	p[l + 1] = '\0';
+	/*
+	 * I'm sure this space is here for a reason, but it's
+	 * a pain in the neck:  when we get back a string that's
+	 * not finished it's very hard to tell if a space at the
+	 * end is this one or not.  We use two tricks below to
+	 * work around this.
+	 */
+	addedspaceptr = p + l;
+	*addedspaceptr = ' ';
+	addedspaceptr[1] = '\0';
 	inpush(p, 0, NULL);
 	zlemetall = strlen(p) ;
 	zlemetacs = zlemetall + 1;
@@ -2479,8 +2501,9 @@ bufferwords(LinkList list, char *buf, int *index)
 	    p = (char *) zhalloc(hptr - chline + ll + 2);
 	    memcpy(p, chline, hptr - chline);
 	    memcpy(p + (hptr - chline), linein, ll);
-	    p[(hptr - chline) + ll] = ' ';
-	    p[(hptr - chline) + zlemetall] = '\0';
+	    addedspaceptr = p + (hptr - chline) + ll;
+	    *addedspaceptr = ' ';
+	    addedspaceptr[1] = '\0';
 	    inpush(p, 0, NULL);
 
 	    /*
@@ -2492,7 +2515,8 @@ bufferwords(LinkList list, char *buf, int *index)
 	} else {
 	    p = (char *) zhalloc(ll + 2);
 	    memcpy(p, linein, ll);
-	    p[ll] = ' ';
+	    addedspaceptr = p + ll;
+	    *addedspaceptr = ' ';
 	    p[zlemetall] = '\0';
 	    inpush(p, 0, NULL);
 	}
@@ -2512,6 +2536,21 @@ bufferwords(LinkList list, char *buf, int *index)
 	    break;
 	if (tokstr && *tokstr) {
 	    untokenize((p = dupstring(tokstr)));
+	    if (ingetptr() == addedspaceptr + 1) {
+		/*
+		 * Whoops, we've read past the space we added, probably
+		 * because we were expecting a terminator but when
+		 * it didn't turn up we shrugged our shoulders thinking
+		 * it might as well be a complete string anyway.
+		 * So remove the space.  C.f. below for the case
+		 * where the missing terminator caused a lex error.
+		 * We use the same paranoid test.
+		 */
+		int plen = strlen(p);
+		if (plen && p[plen-1] == ' ' &&
+		    (plen == 1 || p[plen-2] != Meta))
+		    p[plen-1] = '\0';
+	    }
 	    addlinknode(list, p);
 	    num++;
 	} else if (buf) {
