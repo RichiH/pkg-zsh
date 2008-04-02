@@ -1357,7 +1357,7 @@ The \fBzsh/newuser\fP module is loaded at boot if it is
 available, the \fBRCS\fP option is set, and the \fBPRIVILEGED\fP option is not
 set (all three are true by default)\&.  This takes
 place immediately after commands in the global \fBzshenv\fP file (typically
-\fB/etc/zshenv\fP), if any, have been executed\&.  If the module is not
+\fB/etc/zsh/zshenv\fP), if any, have been executed\&.  If the module is not
 available it is silently ignored by the shell; the module may safely be
 removed from \fB$MODULE_PATH\fP by the administrator if it is not required\&.
 .PP
@@ -1386,7 +1386,7 @@ files for the user, however any valid shell code will be executed\&.
 The \fBzsh/newuser\fP module is then unconditionally unloaded\&.
 .PP
 Note that it is possible to achieve exactly the same effect as the
-\fBzsh/newuser\fP module by adding code to \fB/etc/zshenv\fP\&.  The module
+\fBzsh/newuser\fP module by adding code to \fB/etc/zsh/zshenv\fP\&.  The module
 exists simply to allow the shell to make arrangements for new users without
 the need for intervention by package maintainers and system administrators\&.
 .PP

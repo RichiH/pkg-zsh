@@ -442,7 +442,7 @@ described above even if the shell still has not processed all startup
 files\&.
 .\" Yodl file: Zsh/files.yo
 .SH "STARTUP/SHUTDOWN FILES"
-Commands are first read from \fB/etc/zshenv\fP; this cannot be overridden\&.
+Commands are first read from \fB/etc/zsh/zshenv\fP; this cannot be overridden\&.
 Subsequent behaviour is modified by the \fBRCS\fP and
 \fBGLOBAL_RCS\fP options; the former affects all startup files, while the
 second only affects those in the \fB/etc\fP directory\&.  If one of the options
@@ -454,14 +454,14 @@ default\&.
 .PP
 Commands are then read from \fB$ZDOTDIR/\&.zshenv\fP\&.
 If the shell is a login shell, commands
-are read from \fB/etc/zprofile\fP and then \fB$ZDOTDIR/\&.zprofile\fP\&.
+are read from \fB/etc/zsh/zprofile\fP and then \fB$ZDOTDIR/\&.zprofile\fP\&.
 Then, if the shell is interactive,
-commands are read from \fB/etc/zshrc\fP and then \fB$ZDOTDIR/\&.zshrc\fP\&.
-Finally, if the shell is a login shell, \fB/etc/zlogin\fP and
+commands are read from \fB/etc/zsh/zshrc\fP and then \fB$ZDOTDIR/\&.zshrc\fP\&.
+Finally, if the shell is a login shell, \fB/etc/zsh/zlogin\fP and
 \fB$ZDOTDIR/\&.zlogin\fP are read\&.
 .PP
 When a login shell exits, the files \fB$ZDOTDIR/\&.zlogout\fP and then
-\fB/etc/zlogout\fP are read\&.  This happens with either an explicit exit
+\fB/etc/zsh/zlogout\fP are read\&.  This happens with either an explicit exit
 via the \fBexit\fP or \fBlogout\fP commands, or an implicit exit by reading
 end\-of\-file from the terminal\&.  However, if the shell terminates due
 to \fBexec\fP\&'ing another process, the logout files are not read\&.
@@ -474,7 +474,7 @@ If \fBZDOTDIR\fP is unset, \fBHOME\fP is used instead\&.
 Those files listed above as being in \fB/etc\fP may be in another
 directory, depending on the installation\&.
 .PP
-As \fB/etc/zshenv\fP is run for all instances of zsh, it is important that
+As \fB/etc/zsh/zshenv\fP is run for all instances of zsh, it is important that
 it be kept as small as possible\&.  In particular, it is a good idea to
 put code that does not need to be run for every single shell behind
 a test of the form `\fBif [[ \-o rcs ]]; then \&.\&.\&.\fP\&' so that it will not
@@ -500,15 +500,15 @@ file will be used instead\&.
 .TP
 \fB${TMPPREFIX}*\fP   (default is /tmp/zsh*)
 .TP
-\fB/etc/zshenv\fP
+\fB/etc/zsh/zshenv\fP
 .TP
-\fB/etc/zprofile\fP
+\fB/etc/zsh/zprofile\fP
 .TP
-\fB/etc/zshrc\fP
+\fB/etc/zsh/zshrc\fP
 .TP
-\fB/etc/zlogin\fP
+\fB/etc/zsh/zlogin\fP
 .TP
-\fB/etc/zlogout\fP    (installation\-specific \- \fB/etc\fP is the default)
+\fB/etc/zsh/zlogout\fP    (installation\-specific \- \fB/etc\fP is the default)
 .PD
 .\" Yodl file: Zsh/seealso.yo
 .SH "SEE ALSO"

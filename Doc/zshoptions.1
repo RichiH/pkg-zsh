@@ -570,17 +570,17 @@ most portable way to achieve this behaviour\&.
 .RE
 .TP
 \fBGLOBAL_RCS\fP (\fB\-d\fP) <D>
-If this option is unset, the startup files \fB/etc/zprofile\fP,
-\fB/etc/zshrc\fP, \fB/etc/zlogin\fP and \fB/etc/zlogout\fP will not be run\&.  It
+If this option is unset, the startup files \fB/etc/zsh/zprofile\fP,
+\fB/etc/zsh/zshrc\fP, \fB/etc/zsh/zlogin\fP and \fB/etc/zsh/zlogout\fP will not be run\&.  It
 can be disabled and re\-enabled at any time, including inside local startup
 files (\fB\&.zshrc\fP, etc\&.)\&.
 .TP
 \fBRCS\fP (\fB+f\fP) <D>
-After \fB/etc/zshenv\fP is sourced on startup, source the
-\fB\&.zshenv\fP, \fB/etc/zprofile\fP, \fB\&.zprofile\fP,
-\fB/etc/zshrc\fP, \fB\&.zshrc\fP, \fB/etc/zlogin\fP, \fB\&.zlogin\fP, and \fB\&.zlogout\fP
+After \fB/etc/zsh/zshenv\fP is sourced on startup, source the
+\fB\&.zshenv\fP, \fB/etc/zsh/zprofile\fP, \fB\&.zprofile\fP,
+\fB/etc/zsh/zshrc\fP, \fB\&.zshrc\fP, \fB/etc/zsh/zlogin\fP, \fB\&.zlogin\fP, and \fB\&.zlogout\fP
 files, as described in the section `Files\&'\&.
-If this option is unset, the \fB/etc/zshenv\fP file is still sourced, but any
+If this option is unset, the \fB/etc/zsh/zshenv\fP file is still sourced, but any
 of the others will not be; it can be set at any time to prevent the
 remaining startup files after the currently executing one from
 being sourced\&.
