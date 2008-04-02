@@ -1,3 +1,11 @@
+zsh (4.3.6-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Unconditionally add zsh and zsh-static to /etc/shells in postinst,
+    to ensure smooth transition to lenny+1.  closes: #473652.
+
+ -- Clint Adams <schizo@debian.org>  Wed, 02 Apr 2008 11:31:01 -0400
+
 zsh (4.3.5-8) unstable; urgency=low
 
   * Avoid removal/readdition of shells in /etc/shells on package
