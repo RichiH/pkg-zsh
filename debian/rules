@@ -28,6 +28,7 @@ CONFIGFLAGS += --enable-site-fndir=/usr/local/share/$(package)/site-functions
 CONFIGFLAGS += --enable-fndir=/usr/share/$(package)/functions
 CONFIGFLAGS += --with-tcsetpgrp --with-term-lib="ncursesw"
 CONFIGFLAGS += --enable-cap --enable-pcre
+CONFIGFLAGS += --enable-readnullcmd=pager
 
 STATICFLAGS = --disable-dynamic --enable-ldflags=-static
 ifneq (zsh-beta,$(package))
