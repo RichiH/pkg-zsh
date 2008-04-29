@@ -1,6 +1,5 @@
-zsh (4.3.6-2) UNRELEASED; urgency=low
+zsh (4.3.6-2) unstable; urgency=medium
 
-  * UNRELEASED
   * Complete .spx files after ogg123, thanks to Markus Waldeck.  closes:
     #474744.
   * Call configure with --enable-readnullcmd=pager (for when this
