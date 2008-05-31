@@ -44,7 +44,7 @@ for ac_shellvar in $ac_shellvars; do
   (getconf $ac_lfsvar) >/dev/null 2>&1 || { ac_result=no; break; }
   ac_getconf=`getconf $ac_lfsvar`
   if test -n "$ac_getconf" && test "$ac_getconf" != "undefined"; then
-    eval test '"${'$ac_shellvar'+set}"' = set && ac_set=$ac_shellvar
+    eval test '"${'$ac_shellvar':+set}"' = set && ac_set=$ac_shellvar
     ac_getconfs=$ac_getconfs$ac_getconf
     eval ac_test_$ac_shellvar="\$ac_getconf"
   else
