@@ -1,9 +1,16 @@
+zsh (4.3.6-3) unstable; urgency=low
+
+  * Update locate completion to properly handle newer versions of GNU
+    findutils.  closes: #482662.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 31 May 2008 13:14:20 -0400
+
 zsh (4.3.6-2) unstable; urgency=medium
 
   * Complete .spx files after ogg123, thanks to Markus Waldeck.  closes:
     #474744.
   * Call configure with --enable-readnullcmd=pager (for when this
-    becomes
+    becomes meaningful in the next upstream version, thanks to Marc Chantreux).
   * Hardcode default readnullcmd to "pager" instead of "more".  closes:
     #477722.
 
