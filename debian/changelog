@@ -1,3 +1,12 @@
+zsh (4.3.6-6) unstable; urgency=medium
+
+  * Fudge curses module check to build with libncursesw5-dev.
+  * Apply patch from Chris Lamb to add xrandr --same-as completion.
+    closes: #487626.
+  * Fix completion of gpg --recv-keys and --send-keys.  closes: #491742.
+
+ -- Clint Adams <schizo@debian.org>  Tue, 22 Jul 2008 22:39:19 -0400
+
 zsh (4.3.6-5) unstable; urgency=medium
 
   * ZU#13036: recognize . as a valid username character.
