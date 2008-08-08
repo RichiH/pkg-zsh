@@ -1,3 +1,11 @@
+zsh (4.3.6-7) unstable; urgency=medium
+
+  * Add grep-excuses completion from Chris Lamb.  closes: #494137.
+  * Apply patch from Chris Lamb for apt-show-versions completion
+    improvement.  closes: #494138.
+
+ -- Clint Adams <schizo@debian.org>  Fri, 08 Aug 2008 15:21:25 -0400
+
 zsh (4.3.6-6) unstable; urgency=medium
 
   * Fudge curses module check to build with libncursesw5-dev.
