@@ -1,3 +1,22 @@
+zsh (4.3.9-1) unstable; urgency=low
+
+  * New upstream version.
+    - Fixes completion errors when CSH_JUNKIE_QUOTES is set.  closes: #497663.
+    - Fixes some broken handling of Unicode characters in completion.
+      closes: #501851.
+  * Patch from Chris Lamb for lintian-info completion.  closes: #490383.
+  * Patch from Chris Lamb for Django 1.0 completion.  closes: #500489
+  * Patch from Ansgar Burchardt to improve bts completion.  closes: #503575.
+  * Remove --remote-sent-files from rsync completion, thanks to
+    Louis-David Mitterrand.  closes: #498780.
+  * Fix compinstall losing prior config thanks to Morita Sho.
+    closes: #501248.
+  * Merge in minor rules tweaks from zsh-beta.
+  * Patch from Ryo IGARASHI to equate 'bzr co' with 'bzr checkout'.
+    closes: #504769.
+
+ -- Clint Adams <schizo@debian.org>  Mon, 29 Dec 2008 12:01:01 -0500
+
 zsh (4.3.6-7) unstable; urgency=medium
 
   * Add grep-excuses completion from Chris Lamb.  closes: #494137.
