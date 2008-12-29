@@ -190,7 +190,8 @@ startitem()
 item(tt(w))(
 If the parameter subscripted is a scalar then this flag makes
 subscripting work on words instead of characters.  The default word
-separator is whitespace.
+separator is whitespace.  This flag may not be used with the tt(i) or
+tt(I) flag.
 )
 item(tt(s:)var(string)tt(:))(
 This gives the var(string) that separates words (for use with the
@@ -262,9 +263,10 @@ testing for values or keys that do not exist.
 item(tt(k))(
 If used in a subscript on an associative array, this flag causes the keys
 to be interpreted as patterns, and returns the value for the first key
-found where var(exp) is matched by the key.  This flag does not work on
-the left side of an assignment to an associative array element.  If used
-on another type of parameter, this behaves like `tt(r)'.
+found where var(exp) is matched by the key.  Note this could be any
+such key as no ordering of associative arrays is defined.
+This flag does not work on the left side of an assignment to an associative
+array element.  If used on another type of parameter, this behaves like `tt(r)'.
 )
 item(tt(K))(
 On an associative array this is like `tt(k)' but returns all values where
@@ -343,8 +345,8 @@ The same rule applies to parentheses (`tt(LPAR())' and `tt(RPAR())') and
 braces (`tt({)' and `tt(})'): they must appear either in balanced pairs or
 preceded by a backslash, and backslashes that protect parentheses or
 braces are removed during parsing.  This is because parameter expansions
-may be surrounded balanced braces, and subscript flags are introduced by
-balanced parenthesis.
+may be surrounded by balanced braces, and subscript flags are introduced by
+balanced parentheses.
 
 The second difference is that a double-quote (`tt(")') may appear as part
 of a subscript expression without being preceded by a backslash, and
@@ -728,6 +730,13 @@ of zsh.
 item(tt(zsh_scheduled_events))(
 See ifzman(the section `The zsh/sched Module' in zmanref(zshmodules))\
 ifnzman(noderef(The zsh/sched Module)).
+)
+vindex(ZSH_SUBSHELL <S>)
+item(tt(ZSH_SUBSHELL))(
+Readonly integer.  Initially zero, incremented each time the shell forks
+to create a subshell for executing code.  Hence `tt((print $ZSH_SUBSHELL))'
+and `tt(print $(print $ZSH_SUBSHELL))' output 1, while
+`tt(( (print $ZSH_SUBSHELL) ))' outputs 2.
 )
 vindex(ZSH_VERSION)
 item(tt(ZSH_VERSION))(

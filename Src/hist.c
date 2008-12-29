@@ -130,8 +130,7 @@ mod_export int hist_skip_flags;
 
 /* Bits of histactive variable */
 #define HA_ACTIVE	(1<<0)	/* History mechanism is active */
-#define HA_NOSTORE	(1<<1)	/* Don't store the line when finished */
-#define HA_NOINC	(1<<2)	/* Don't store, curhist not incremented */
+#define HA_NOINC	(1<<1)	/* Don't store, curhist not incremented */
 
 /* Array of word beginnings and endings in current history line. */
 
@@ -180,6 +179,30 @@ int hlinesz;
  
 static zlong defev;
 
+/* Remember the last line in the history file so we can find it again. */
+static struct histfile_stats {
+    char *text;
+    time_t stim, mtim;
+    off_t fpos, fsiz;
+    zlong next_write_ev;
+} lasthist;
+
+static struct histsave {
+    struct histfile_stats lasthist;
+    char *histfile;
+    HashTable histtab;
+    Histent hist_ring;
+    zlong curhist;
+    zlong histlinect;
+    zlong histsiz;
+    zlong savehistsiz;
+    int locallevel;
+} *histsave_stack;
+static int histsave_stack_size = 0;
+static int histsave_stack_pos = 0;
+
+static zlong histfile_linect;
+
 /* add a character to the current history word */
 
 static void
@@ -220,7 +243,7 @@ iaddtoline(int c)
 	return;
     if (qbang && c == bangchar && stophist < 2) {
 	exlast--;
-	zleaddtolineptr('\\');
+	zleentry(ZLE_CMD_ADD_TO_LINE, '\\');
     }
     if (excs > zlemetacs) {
 	excs += 1 + inbufct - exlast;
@@ -230,7 +253,7 @@ iaddtoline(int c)
 	    excs = zlemetacs;
     }
     exlast = inbufct;
-    zleaddtolineptr(itok(c) ? ztokens[c - Pound] : c);
+    zleentry(ZLE_CMD_ADD_TO_LINE, itok(c) ? ztokens[c - Pound] : c);
 }
 
 
@@ -323,8 +346,10 @@ getsubsargs(char *subline, int *gbalp, int *cflagp)
     if (strlen(ptr1)) {
 	zsfree(hsubl);
 	hsubl = ptr1;
-    } else if (!hsubl)		/* fail silently on this */
+    } else if (!hsubl) {		/* fail silently on this */
+	zsfree(ptr2);
 	return 0;
+    }
     zsfree(hsubr);
     hsubr = ptr2;
     follow = ingetc();
@@ -920,7 +945,7 @@ movehistent(Histent he, int n, int xflags)
 mod_export Histent
 up_histent(Histent he)
 {
-    return he->up == hist_ring? NULL : he->up;
+    return !he || he->up == hist_ring? NULL : he->up;
 }
 
 /**/
@@ -1082,7 +1107,8 @@ should_ignore_line(Eprog prog)
 mod_export int
 hend(Eprog prog)
 {
-    int flag, save = 1;
+    LinkList hookargs = newlinklist();
+    int flag, save = 1, hookret, stack_pos = histsave_stack_pos;
     char *hf;
 
     DPUTS(stophist != 2 && !(inbufflags & INP_ALIAS) && !chline,
@@ -1092,7 +1118,7 @@ hend(Eprog prog)
 	settyinfo(&shttyinfo);
     if (!(histactive & HA_NOINC))
 	unlinkcurline();
-    if (histactive & (HA_NOSTORE|HA_NOINC)) {
+    if (histactive & HA_NOINC) {
 	zfree(chline, hlinesz);
 	zfree(chwords, chwordlen*sizeof(short));
 	chline = NULL;
@@ -1103,6 +1129,16 @@ hend(Eprog prog)
     if (hist_ignore_all_dups != isset(HISTIGNOREALLDUPS)
      && (hist_ignore_all_dups = isset(HISTIGNOREALLDUPS)) != 0)
 	histremovedups();
+
+    /*
+     * Added the following in case the test "hptr < chline + 1"
+     * is more than just paranoia.
+     */
+    DPUTS(hptr < chline, "History end pointer off start of line");
+    *hptr = '\0';
+    addlinknode(hookargs, "zshaddhistory");
+    addlinknode(hookargs, chline);
+    callhookfunc("zshaddhistory", hookargs, 1, &hookret);
     /* For history sharing, lock history file once for both read and write */
     hf = getsparam("HISTFILE");
     if (isset(SHAREHISTORY) && lockhistfile(hf, 0)) {
@@ -1114,7 +1150,6 @@ hend(Eprog prog)
     if (hptr < chline + 1)
 	save = 0;
     else {
-	*hptr = '\0';
 	if (hptr[-1] == '\n') {
 	    if (chline[1]) {
 		*--hptr = '\0';
@@ -1123,7 +1158,7 @@ hend(Eprog prog)
 	}
 	if (chwordpos <= 2)
 	    save = 0;
-	else if (should_ignore_line(prog))
+	else if (hookret || should_ignore_line(prog))
 	    save = -1;
     }
     if (flag & (HISTFLAG_DONE | HISTFLAG_RECALL)) {
@@ -1203,6 +1238,12 @@ hend(Eprog prog)
     if (isset(SHAREHISTORY)? histfileIsLocked() : isset(INCAPPENDHISTORY))
 	savehistfile(hf, 0, HFILE_USE_OPTIONS | HFILE_FAST);
     unlockhistfile(hf); /* It's OK to call this even if we aren't locked */
+    /*
+     * No good reason for the user to push the history more than once, but
+     * it's easy to be tidy...
+     */
+    while (histsave_stack_pos > stack_pos)
+	pophiststack();
     unqueue_signals();
     return !(flag & HISTFLAG_NOEXEC || errflag);
 }
@@ -1567,6 +1608,8 @@ casemodify(char *str, int how)
 
 	    case CASMOD_CAPS:
 	    default:		/* shuts up compiler */
+		if (IS_COMBINING(wc))
+			break;
 		if (!iswalnum(wc))
 		    nextupper = 1;
 		else if (nextupper) {
@@ -1899,10 +1942,6 @@ hdynread2(int stop)
 
     ptr = buf;
     while ((c = ingetc()) != stop && c != '\n' && !lexstop) {
-	if (c == '\n') {
-	    inungetc(c);
-	    break;
-	}
 	if (c == '\\')
 	    c = ingetc();
 	*ptr++ = c;
@@ -1939,30 +1978,6 @@ resizehistents(void)
 	}
     }
 }
-
-/* Remember the last line in the history file so we can find it again. */
-static struct histfile_stats {
-    char *text;
-    time_t stim, mtim;
-    off_t fpos, fsiz;
-    zlong next_write_ev;
-} lasthist;
-
-static struct histsave {
-    struct histfile_stats lasthist;
-    char *histfile;
-    HashTable histtab;
-    Histent hist_ring;
-    zlong curhist;
-    zlong histlinect;
-    zlong histsiz;
-    zlong savehistsiz;
-    int locallevel;
-} *histsave_stack;
-static int histsave_stack_size = 0;
-static int histsave_stack_pos = 0;
-
-static zlong histfile_linect;
 
 static int
 readhistline(int start, char **bufp, int *bufsiz, FILE *in)
@@ -2149,6 +2164,36 @@ readhistfile(char *fn, int err, int readflags)
     unlockhistfile(fn);
 }
 
+#ifdef HAVE_FCNTL_H
+static int flock_fd = -1;
+
+static int
+flockhistfile(char *fn, int keep_trying)
+{
+    struct flock lck;
+    int ctr = keep_trying ? 9 : 0;
+
+    if ((flock_fd = open(unmeta(fn), O_RDWR | O_NOCTTY)) < 0)
+	return errno == ENOENT; /* "successfully" locked missing file */
+
+    lck.l_type = F_WRLCK;
+    lck.l_whence = SEEK_SET;
+    lck.l_start = 0;
+    lck.l_len = 0;  /* lock the whole file */
+
+    while (fcntl(flock_fd, F_SETLKW, &lck) == -1) {
+	if (--ctr < 0) {
+	    close(flock_fd);
+	    flock_fd = -1;
+	    return 0;
+	}
+	sleep(1);
+    }
+
+    return 1;
+}
+#endif
+
 /**/
 void
 savehistfile(char *fn, int err, int writeflags)
@@ -2214,6 +2259,7 @@ savehistfile(char *fn, int err, int writeflags)
 #endif
 	     && sb.st_uid != euid) {
 		free(tmpfile);
+		tmpfile = NULL;
 		if (err) {
 		    if (isset(APPENDHISTORY) || isset(INCAPPENDHISTORY)
 		     || isset(SHAREHISTORY))
@@ -2289,12 +2335,23 @@ savehistfile(char *fn, int err, int writeflags)
 	    ret = -1;
 	if (ret >= 0) {
 	    if (tmpfile) {
-		if (rename(tmpfile, unmeta(fn)) < 0)
+		if (rename(tmpfile, unmeta(fn)) < 0) {
 		    zerr("can't rename %s.new to $HISTFILE", fn);
-		free(tmpfile);
+		    ret = -1;
+		    err = 0;
+#ifdef HAVE_FCNTL_H
+		} else {
+		    /* We renamed over the locked HISTFILE, so close fd.
+		     * If we do more writing, we'll get a lock then. */
+		    if (flock_fd >= 0) {
+			close(flock_fd);
+			flock_fd = -1;
+		    }
+#endif
+		}
 	    }
 
-	    if (writeflags & HFILE_SKIPOLD
+	    if (ret >= 0 && writeflags & HFILE_SKIPOLD
 		&& !(writeflags & (HFILE_FAST | HFILE_NO_REWRITE))) {
 		int remember_histactive = histactive;
 
@@ -2317,12 +2374,13 @@ savehistfile(char *fn, int err, int writeflags)
 	ret = -1;
 
     if (ret < 0 && err) {
-	if (tmpfile) {
+	if (tmpfile)
 	    zerr("failed to write history file %s.new: %e", fn, errno);
-	    free(tmpfile);
-	} else
+	else
 	    zerr("failed to write history file %s: %e", fn, errno);
     }
+    if (tmpfile)
+	free(tmpfile);
 
     unlockhistfile(fn);
 }
@@ -2337,6 +2395,12 @@ lockhistfile(char *fn, int keep_trying)
 
     if (!fn && !(fn = getsparam("HISTFILE")))
 	return 0;
+
+#ifdef HAVE_FCNTL_H
+    if (isset(HISTFCNTLLOCK) && flock_fd < 0 && !flockhistfile(fn, keep_trying))
+	return 0;
+#endif
+
     if (!lockhistct++) {
 	struct stat sb;
 	int fd;
@@ -2401,7 +2465,17 @@ lockhistfile(char *fn, int keep_trying)
 #endif /* not HAVE_LINK */
 	free(lockfile);
     }
-    return ct != lockhistct;
+
+    if (ct == lockhistct) {
+#ifdef HAVE_FCNTL_H
+	if (flock_fd >= 0) {
+	    close(flock_fd);
+	    flock_fd = -1;
+	}
+#endif
+	return 0;
+    }
+    return 1;
 }
 
 /* Unlock the history file if this corresponds to the last nested lock
@@ -2425,6 +2499,12 @@ unlockhistfile(char *fn)
 	sprintf(lockfile, "%s.LOCK", fn);
 	unlink(lockfile);
 	free(lockfile);
+#ifdef HAVE_FCNTL_H
+	if (flock_fd >= 0) {
+	    close(flock_fd);
+	    flock_fd = -1;
+	}
+#endif
     }
 }
 
@@ -2488,12 +2568,7 @@ bufferwords(LinkList list, char *buf, int *index)
 	int ll, cs;
 	char *linein;
 
-	if (zlegetlineptr) {
-	    linein = (char *)zlegetlineptr(&ll, &cs);
-	} else {
-	    linein = ztrdup("");
-	    ll = cs = 0;
-	}
+	linein = zleentry(ZLE_CMD_GET_LINE, &ll, &cs);
 	zlemetall = ll + 1; /* length of line plus space added below */
 	zlemetacs = cs;
 

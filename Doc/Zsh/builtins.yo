@@ -98,6 +98,10 @@ If the tt(-L) flag is present, then print each
 alias in a manner suitable for putting in a startup script.  The exit
 status is nonzero if a var(name) (with no var(value)) is given for
 which no alias has been defined.
+
+For more on aliases, include common problems,
+ifzman(see the section ALIASING in zmanref(zshmisc))\
+ifnzman(noderef(Aliasing)).
 )
 findex(autoload)
 cindex(functions, autoloading)
@@ -378,7 +382,10 @@ findex(eval)
 cindex(evaluating arguments as commands)
 item(tt(eval) [ var(arg) ... ])(
 Read the arguments as input to the shell and execute the resulting
-command in the current shell process.
+command+LPAR()s+RPAR() in the current shell process.  The return status is
+the same as if the commands had been executed directly by the shell;
+if there are no var(args) or they contain no commands (i.e. are
+an empty string or whitespace) the return status is zero.
 )
 item(tt(exec) [ tt(-cl) ] [ tt(-a) var(argv0) ] var(simple command))(
 Replace the current shell with an external command rather than forking.
@@ -1297,8 +1304,23 @@ If var(sig) is tt(ZERR) then var(arg) will be executed
 after each command with a nonzero exit status.  tt(ERR) is an alias
 for tt(ZERR) on systems that have no tt(SIGERR) signal (this is the
 usual case).
+
 If var(sig) is tt(DEBUG) then var(arg) will be executed
-after each command.
+before each command if the option tt(DEBUG_BEFORE_CMD) is set
+(as it is by default), else after each command.  Here, a `command' is
+what is described as a `sublist' in the shell grammar, see
+ifnzman(noderef(Simple Commands & Pipelines))\
+ifzman(the section SIMPLE COMMANDS & PIPELINES in zmanref(zshmisc)).
+If tt(DEBUG_BEFORE_CMD) is set various additional features are available.
+First, it is possible to skip the next command by setting the option
+tt(ERR_EXIT); see the description of the tt(ERR_EXIT) option in
+ifzman(zmanref(zshoptions))\
+ifnzman(noderef(Description of Options)).  Also, the shell parameter
+tt(ZSH_DEBUG_CMD) is set to the string corresponding to the command
+to be executed following the trap.  Note that this string is reconstructed
+from the internal format and may not be formatted the same way as the
+original text.  The parameter is unset after the trap is executed.
+
 If var(sig) is tt(0) or tt(EXIT)
 and the tt(trap) statement is executed inside the body of a function,
 then the command var(arg) is executed after the function completes.
@@ -1308,7 +1330,9 @@ If var(sig) is tt(0) or tt(EXIT)
 and the tt(trap) statement is not executed inside the body of a function,
 then the command var(arg) is executed when the shell terminates.
 
-tt(ZERR), tt(DEBUG), and tt(EXIT) traps are not executed inside other traps.
+tt(ZERR), tt(DEBUG), and tt(EXIT) traps are not executed inside other
+traps.  tt(ZERR) and tt(DEBUG) traps are kept within subshells, while
+other traps are reset.
 
 Note that traps defined with the tt(trap) builtin are slightly different
 from those defined as `tt(TRAP)var(NAL) () { ... }', as the latter have
@@ -1551,7 +1575,7 @@ for non-special parameters.
 item(tt(-i))(
 Use an internal integer representation.  If var(n) is nonzero it
 defines the output arithmetic base, otherwise it is determined by the
-first assignment.
+first assignment.  Bases from 2 to 36 inclusive are allowed.
 )
 item(tt(-E))(
 Use an internal double-precision floating point representation.  On output
@@ -1609,7 +1633,7 @@ unit is printed before each value.
 
 When looping over multiple resources, the shell will abort immediately if
 it detects a badly formed argument.  However, if it fails to set a limit
-for some other reson it will continue trying to set the remaining limits.
+for some other reason it will continue trying to set the remaining limits.
 
 startsitem()
 sitem(tt(-a))(Lists all of the current resource limits.)
@@ -1901,7 +1925,7 @@ findex(zmodload)
 cindex(modules, loading)
 cindex(loading modules)
 xitem(tt(zmodload) [ tt(-dL) ] [ ... ])
-xitem(tt(zmodload -F) [ tt(-lLe) tt(-P) tt(param) ] var(module) [tt(PLUS()-)]var(feature...))
+xitem(tt(zmodload -F) [ tt(-lLme) tt(-P) tt(param) ] var(module) [tt(PLUS()-)]var(feature...))
 xitem(tt(zmodload -e) [ tt(-A) ] [ ... ])
 xitem(tt(zmodload) [ tt(-a) [ tt(-bcpf) [ tt(-I) ] ] ] [ tt(-iL) ] ...)
 xitem(tt(zmodload) tt(-u) [ tt(-abcdpf) [ tt(-I) ] ] [ tt(-iL) ] ...)
@@ -1952,7 +1976,7 @@ Each module has a boot and a cleanup function.  The module
 will not be loaded if its boot function fails.  Similarly a module
 can only be unloaded if its cleanup function runs successfully.
 )
-item(tt(zmodload -F) [ tt(-alLe) tt(-P) tt(param) ] var(module) [tt(PLUS()-)]var(feature...))(
+item(tt(zmodload -F) [ tt(-almLe) tt(-P) tt(param) ] var(module) [tt(PLUS()-)]var(feature...))(
 tt(zmodload -F) allows more selective control over the features provided
 by modules.  With no options apart from tt(-F), the module named
 var(module) is loaded, if it was not already loaded, and the list of
@@ -2006,6 +2030,12 @@ any feature given with a prefix tt(PLUS()) or tt(-) is tested to
 see if is provided and in the given state.  If the tests on all features
 in the list succeed, status 0 is returned, else status 1.
 
+With tt(-m), each entry in the given list of features is taken
+as a pattern to be matched against the list of features provided
+by the module.  An initial tt(PLUS()) or tt(-) must be given explicitly.
+This may not be combined with the tt(-a) option as autoloads must
+be specified explicitly.
+
 With tt(-a), the given list of features is marked for autoload from
 the specified module, which may not yet be loaded.  An optional tt(PLUS())
 may appear before the feature name.  If the feature is prefixed with
@@ -2015,7 +2045,7 @@ features; when the module is loaded only the requested feature is
 enabled.  Autoload requests are preserved if the module is
 subsequently unloaded until an explicit `tt(zmodload -Fa) var(module)
 tt(-)var(feature)' is issued.  It is not an error to request an autoload
-for a feature of a module that is already loaded.  
+for a feature of a module that is already loaded.
 
 When the module is loaded each autoload is checked against the features
 actually provided by the module; if the feature is not provided the

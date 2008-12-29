@@ -64,10 +64,33 @@ int nohistsave;
 /**/
 mod_export int errflag;
  
-/* Status of return from a trap */
+/*
+ * State of trap return value.  Value is from enum trap_state.
+ */
+
+/**/
+int trap_state;
+
+/*
+ * Value associated with return from a trap.
+ * This is only active if we are inside a trap, else its value
+ * is irrelevant.  It is initialised to -1 for a function trap and
+ * -2 for a non-function trap and if negative is decremented as
+ * we go deeper into functions and incremented as we come back up.
+ * The value is used to decide if an explicit "return" should cause
+ * a return from the caller of the trap; it does this by setting
+ * trap_return to a status (i.e. a non-negative value).
+ *
+ * In summary, trap_return is
+ * - zero unless we are in a trap
+ * - negative in a trap unless it has triggered.  Code uses this
+ *   to detect an active trap.
+ * - non-negative in a trap once it was triggered.  It should remain
+ *   non-negative until restored after execution of the trap.
+ */
  
 /**/
-int trapreturn;
+int trap_return;
  
 /* != 0 if this is a subshell */
  
@@ -165,15 +188,17 @@ static struct builtin commandbn =
 
 /**/
 mod_export Eprog
-parse_string(char *s)
+parse_string(char *s, int reset_lineno)
 {
     Eprog p;
-    int oldlineno = lineno;
+    zlong oldlineno;
 
     lexsave();
     inpush(s, INP_LINENO, NULL);
     strinbeg(0);
-    lineno = 1;
+    oldlineno = lineno;
+    if (reset_lineno)
+	lineno = 1;
     p = parse_list();
     lineno = oldlineno;
     if (tok == LEXERR && !lastval)
@@ -495,7 +520,7 @@ commandnotfound(char *arg0, LinkList args)
 	return 127;
 
     pushnode(args, arg0);
-    return doshfunc(shf->node.nam, shf->funcdef, args, shf->node.flags, 1);
+    return doshfunc(shf, args, 1);
 }
 
 /* execute an external command */
@@ -846,7 +871,8 @@ entersubsh(int flags)
 
     if (!(flags & ESUB_KEEPTRAP))
 	for (sig = 0; sig < VSIGCOUNT; sig++)
-	    if (!(sigtrapped[sig] & ZSIG_FUNC))
+	    if (!(sigtrapped[sig] & ZSIG_FUNC) &&
+		sig != SIGDEBUG && sig != SIGZERR)
 		unsettrap(sig);
     monitor = isset(MONITOR);
     if (flags & ESUB_NOMONITOR)
@@ -887,6 +913,13 @@ entersubsh(int flags)
     }
     if (!(flags & ESUB_FAKE))
 	subsh = 1;
+    /*
+     * Increment the visible parameter ZSH_SUBSHELL even if this
+     * is a fake subshell because we are exec'ing at the end.
+     * Logically this should be equivalent to a real subshell so
+     * we don't hang out the dirty washing.
+     */
+    zsh_subshell++;
     if ((flags & ESUB_REVERTPGRP) && getpid() == mypgrp)
 	release_pgrp();
     if (SHTTY != -1) {
@@ -923,7 +956,7 @@ execstring(char *s, int dont_change_job, int exiting)
     Eprog prog;
 
     pushheap();
-    if ((prog = parse_string(s)))
+    if ((prog = parse_string(s, 0)))
 	execode(prog, dont_change_job, exiting);
     popheap();
 }
@@ -959,7 +992,7 @@ execsimple(Estate state)
 	return (lastval = 1);
 
     /* In evaluated traps, don't modify the line number. */
-    if ((!intrap || trapisfunc) && !ineval && code)
+    if (!IN_EVAL_TRAP() && !ineval && code)
 	lineno = code - 1;
 
     code = wc_code(*state->pc++);
@@ -993,7 +1026,8 @@ execlist(Estate state, int dont_change_job, int exiting)
     Wordcode next;
     wordcode code;
     int ret, cj, csp, ltype;
-    int old_pline_level, old_list_pipe, oldlineno;
+    int old_pline_level, old_list_pipe;
+    zlong oldlineno;
     /*
      * ERREXIT only forces the shell to exit if the last command in a &&
      * or || fails.  This is the case even if an earlier command is a
@@ -1019,7 +1053,7 @@ execlist(Estate state, int dont_change_job, int exiting)
 	ltype = WC_LIST_TYPE(code);
 	csp = cmdsp;
 
-	if ((!intrap || trapisfunc) && !ineval) {
+	if (!IN_EVAL_TRAP() && !ineval) {
 	    /*
 	     * Ensure we have a valid line number for debugging,
 	     * unless we are in an evaluated trap in which case
@@ -1036,7 +1070,7 @@ execlist(Estate state, int dont_change_job, int exiting)
 		lnp1 = code2;
 	    } else if (wc_code(code2) == WC_SUBLIST) {
 		if (WC_SUBLIST_FLAGS(code2) == WC_SUBLIST_SIMPLE)
-		    lnp1 = state->pc[2];
+		    lnp1 = state->pc[1];
 		else
 		    lnp1 = WC_PIPE_LINENO(state->pc[1]);
 	    }
@@ -1044,24 +1078,38 @@ execlist(Estate state, int dont_change_job, int exiting)
 		lineno = lnp1 - 1;
 	}
 
-	if (sigtrapped[SIGDEBUG] && isset(DEBUGBEFORECMD)) {
+	if (sigtrapped[SIGDEBUG] && isset(DEBUGBEFORECMD) && !intrap) {
+	    Wordcode pc2 = state->pc;
+	    int oerrexit_opt = opts[ERREXIT];
+	    Param pm;
+	    opts[ERREXIT] = 0;
+	    noerrexit = 1;
+	    if (ltype & Z_SIMPLE) /* skip the line number */
+		pc2++;
+	    pm = setsparam("ZSH_DEBUG_CMD", getpermtext(state->prog, pc2, 0));
+
 	    exiting = donetrap;
 	    ret = lastval;
 	    dotrap(SIGDEBUG);
-	    lastval = ret;
+	    if (!retflag)
+		lastval = ret;
 	    donetrap = exiting;
 	    noerrexit = oldnoerrexit;
 	    /*
 	     * Only execute the trap once per sublist, even
 	     * if the DEBUGBEFORECMD option changes.
 	     */
-	    donedebug = 1;
+	    donedebug = isset(ERREXIT) ? 2 : 1;
+	    opts[ERREXIT] = oerrexit_opt;
+	    if (pm)
+		unsetparam_pm(pm, 0, 1);
 	} else
-	    donedebug = 0;
+	    donedebug = intrap ? 1 : 0;
 
 	if (ltype & Z_SIMPLE) {
 	    next = state->pc + WC_LIST_SKIP(code);
-	    execsimple(state);
+	    if (donedebug != 2)
+		execsimple(state);
 	    state->pc = next;
 	    goto sublist_done;
 	}
@@ -1071,6 +1119,18 @@ execlist(Estate state, int dont_change_job, int exiting)
 
 	/* Loop through code followed by &&, ||, or end of sublist. */
 	code = *state->pc++;
+	if (donedebug == 2) {
+	    /* Skip sublist. */
+	    while (wc_code(code) == WC_SUBLIST) {
+		state->pc = state->pc + WC_SUBLIST_SKIP(code);
+		if (WC_SUBLIST_TYPE(code) == WC_SUBLIST_END)
+		    break;
+		code = *state->pc++;
+	    }
+	    donetrap = 1;
+	    /* yucky but consistent... */
+	    goto sublist_done;
+	}
 	while (wc_code(code) == WC_SUBLIST) {
 	    next = state->pc + WC_SUBLIST_SKIP(code);
 	    if (!oldnoerrexit)
@@ -1161,12 +1221,21 @@ sublist_done:
 	noerrexit = oldnoerrexit;
 
 	if (sigtrapped[SIGDEBUG] && !isset(DEBUGBEFORECMD) && !donedebug) {
+	    /*
+	     * Save and restore ERREXIT for consistency with
+	     * DEBUGBEFORECMD, even though it's not used.
+	     */
+	    int oerrexit_opt = opts[ERREXIT];
+	    opts[ERREXIT] = 0;
+	    noerrexit = 1;
 	    exiting = donetrap;
 	    ret = lastval;
 	    dotrap(SIGDEBUG);
-	    lastval = ret;
+	    if (!retflag)
+		lastval = ret;
 	    donetrap = exiting;
 	    noerrexit = oldnoerrexit;
+	    opts[ERREXIT] = oerrexit_opt;
 	}
 
 	cmdsp = csp;
@@ -1376,7 +1445,7 @@ execpline(Estate state, wordcode slcode, int how, int last1)
 		    pipe(synch);
 
 		    if ((pid = zfork(&bgtime)) == -1) {
-			trashzleptr();
+			zleentry(ZLE_CMD_TRASH);
 			close(synch[0]);
 			close(synch[1]);
 			fprintf(stderr, "zsh: job can't be suspended\n");
@@ -1476,7 +1545,7 @@ execpline2(Estate state, wordcode pcode,
 	return;
 
     /* In evaluated traps, don't modify the line number. */
-    if ((!intrap || trapisfunc) && !ineval && WC_PIPE_LINENO(pcode))
+    if (!IN_EVAL_TRAP() && !ineval && WC_PIPE_LINENO(pcode))
 	lineno = WC_PIPE_LINENO(pcode) - 1;
 
     if (pline_level == 1) {
@@ -1606,6 +1675,66 @@ untokenize(char *s)
 		*p = '\0';
 		break;
 	    }
+    }
+}
+
+
+/*
+ * Given a tokenized string, output it to standard output in
+ * such a way that it's clear which tokens are active.
+ * Hence Star becomes an unquoted "*", while a "*" becomes "\*".
+ *
+ * The code here is a kind of amalgamation of the tests in
+ * zshtokenize() and untokenize() with some outputting.
+ */
+
+/**/
+void
+quote_tokenized_output(char *str, FILE *file)
+{
+    char *s = str;
+
+    for (; *s; s++) {
+	switch (*s) {
+	case Meta:
+	    putc(*++s ^ 32, file);
+	    continue;
+
+	case Nularg:
+	    /* Do nothing.  I think. */
+	    continue;
+
+	case '\\':
+	case '<':
+	case '>':
+	case '(':
+	case '|':
+	case ')':
+	case '^':
+	case '#':
+	case '~':
+	case '[':
+	case ']':
+	case '*':
+	case '?':
+	case '$':
+	    putc('\\', file);
+	    break;
+
+	case '=':
+	    if (s == str)
+		putc('\\', file);
+	    break;
+
+	default:
+	    if (itok(*s)) {
+		putc(ztokens[*s - Pound], file);
+		continue;
+	    }
+	    break;
+	}
+
+	putc(*s, file);
     }
 }
 
@@ -2105,11 +2234,12 @@ execcmd(Estate state, int input, int output, int how, int last1)
     LinkList redir;
     wordcode code;
     Wordcode beg = state->pc, varspc;
-    FILE *oxtrerr = xtrerr;
+    FILE *oxtrerr = xtrerr, *newxtrerr = NULL;
 
     doneps4 = 0;
     redir = (wc_code(*state->pc) == WC_REDIR ? ecgetredirs(state) : NULL);
     if (wc_code(*state->pc) == WC_ASSIGN) {
+	cmdoutval = 0;
 	varspc = state->pc;
 	while (wc_code((code = *state->pc)) == WC_ASSIGN)
 	    state->pc += (WC_ASSIGN_TYPE(code) == WC_ASSIGN_SCALAR ?
@@ -2126,6 +2256,12 @@ execcmd(Estate state, int input, int output, int how, int last1)
      * they don't modify their argument strings. */
     args = (type == WC_SIMPLE ?
 	    ecgetlist(state, WC_SIMPLE_ARGC(code), EC_DUP, &htok) : NULL);
+    /*
+     * If assignment but no command get the status from variable
+     * assignment.
+     */
+    if (!args && varspc)
+	lastval = errflag ? errflag : cmdoutval;
 
     for (i = 0; i < 10; i++) {
 	save[i] = -2;
@@ -2615,10 +2751,10 @@ execcmd(Estate state, int input, int output, int how, int last1)
     fflush(xtrerr);
     if (isset(XTRACE) && xtrerr == stderr &&
 	(type < WC_SUBSH || type == WC_TIMED)) {
-	if (!(xtrerr = fdopen(movefd(dup(fileno(stderr))), "w")))
-	    xtrerr = stderr;
-	else
+	if ((newxtrerr = fdopen(movefd(dup(fileno(stderr))), "w"))) {
+	    xtrerr = newxtrerr;
 	    fdtable[fileno(xtrerr)] = FDT_XTRACE;
+	}
     }
 
     /* Add pipeline input/output to mnodes */
@@ -2676,10 +2812,11 @@ execcmd(Estate state, int input, int output, int how, int last1)
 		else
 		    fil = getherestr(fn);
 		if (fil == -1) {
+		    if (errno && errno != EINTR)
+			zwarn("can't create temp file for here document: %e",
+			      errno);
 		    closemnodes(mfds);
 		    fixfds(save);
-		    if (errno && errno != EINTR)
-			zwarn("%e", errno);
 		    execerr();
 		}
 		addfd(forked, save, mfds, fn->fd1, fil, 0, fn->varid);
@@ -2825,6 +2962,7 @@ execcmd(Estate state, int input, int output, int how, int last1)
 	if (mfds[i] && mfds[i]->ct >= 2)
 	    closemn(mfds, i);
 
+    xtrerr = stderr;
     if (nullexec) {
 	if (nullexec == 1) {
 	    /*
@@ -3039,9 +3177,9 @@ execcmd(Estate state, int input, int output, int how, int last1)
     fixfds(save);
 
  done:
-    if (xtrerr != oxtrerr) {
-	fil = fileno(xtrerr);
-	fclose(xtrerr);
+    if (newxtrerr) {
+	fil = fileno(newxtrerr);
+	fclose(newxtrerr);
 	xtrerr = oxtrerr;
 	zclose(fil);
     }
@@ -3312,7 +3450,7 @@ getoutput(char *cmd, int qt)
     pid_t pid;
     char *s;
 
-    if (!(prog = parse_string(cmd)))
+    if (!(prog = parse_string(cmd, 0)))
 	return NULL;
 
     if ((s = simple_redir_name(prog, REDIR_READ))) {
@@ -3433,7 +3571,7 @@ parsecmd(char *cmd)
 	return NULL;
     }
     *str = '\0';
-    if (str[1] || !(prog = parse_string(cmd + 2))) {
+    if (str[1] || !(prog = parse_string(cmd + 2, 0))) {
 	zerr("parse error in process substitution");
 	return NULL;
     }
@@ -3792,18 +3930,15 @@ static int
 execfuncdef(Estate state, UNUSED(int do_exec))
 {
     Shfunc shf;
-    char *s;
-    int signum, nprg, sbeg, nstrs, npats, len, plen, i, htok = 0;
+    char *s = NULL;
+    int signum, nprg, sbeg, nstrs, npats, len, plen, i, htok = 0, ret = 0;
     Wordcode beg = state->pc, end;
     Eprog prog;
     Patprog *pp;
     LinkList names;
 
     end = beg + WC_FUNCDEF_SKIP(state->pc[-1]);
-    if (!(names = ecgetlist(state, *state->pc++, EC_DUPTOK, &htok))) {
-	state->pc = end;
-	return 0;
-    }
+    names = ecgetlist(state, *state->pc++, EC_DUPTOK, &htok);
     nprg = end - beg;
     sbeg = *state->pc++;
     nstrs = *state->pc++;
@@ -3813,21 +3948,32 @@ execfuncdef(Estate state, UNUSED(int do_exec))
     plen = nprg * sizeof(wordcode);
     len = plen + (npats * sizeof(Patprog)) + nstrs;
 
-    if (htok)
+    if (htok && names)
 	execsubst(names);
 
-    while ((s = (char *) ugetnode(names))) {
-	prog = (Eprog) zalloc(sizeof(*prog));
+    while (!names || (s = (char *) ugetnode(names))) {
+	if (!names) {
+	    prog = (Eprog) zhalloc(sizeof(*prog));
+	    prog->nref = -1; /* on the heap */
+	} else {
+	    prog = (Eprog) zalloc(sizeof(*prog));
+	    prog->nref = 1; /* allocated from permanent storage */
+	}
 	prog->npats = npats;
-	prog->nref = 1; /* allocated from permanent storage */
 	prog->len = len;
-	if (state->prog->dump) {
-	    prog->flags = EF_MAP;
-	    incrdumpcount(state->prog->dump);
-	    prog->pats = pp = (Patprog *) zalloc(npats * sizeof(Patprog));
+	if (state->prog->dump || !names) {
+	    if (!names) {
+		prog->flags = EF_HEAP;
+		prog->dump = NULL;
+		prog->pats = pp = (Patprog *) zhalloc(npats * sizeof(Patprog));
+	    } else {
+		prog->flags = EF_MAP;
+		incrdumpcount(state->prog->dump);
+		prog->dump = state->prog->dump;
+		prog->pats = pp = (Patprog *) zalloc(npats * sizeof(Patprog));
+	    }
 	    prog->prog = state->pc;
 	    prog->strs = state->strs + sbeg;
-	    prog->dump = state->prog->dump;
 	} else {
 	    prog->flags = EF_REAL;
 	    prog->pats = pp = (Patprog *) zalloc(len);
@@ -3844,27 +3990,44 @@ execfuncdef(Estate state, UNUSED(int do_exec))
 	shf = (Shfunc) zalloc(sizeof(*shf));
 	shf->funcdef = prog;
 	shf->node.flags = 0;
+	shf->filename = ztrdup(scriptfilename);
+	shf->lineno = lineno;
 
-	/* is this shell function a signal trap? */
-	if (!strncmp(s, "TRAP", 4) &&
-	    (signum = getsignum(s + 4)) != -1) {
-	    if (settrap(signum, NULL, ZSIG_FUNC)) {
-		freeeprog(shf->funcdef);
-		zfree(shf, sizeof(*shf));
-		state->pc = end;
-		return 1;
-	    }
-
+	if (!names) {
 	    /*
-	     * Remove the old node explicitly in case it has
-	     * an alternative name
+	     * Anonymous function, execute immediately.
+	     * Function name is "(anon)", parameter list is empty.
 	     */
-	    removetrapnode(signum);
+	    LinkList args = newlinklist();
+
+	    shf->node.nam = "(anon)";
+	    addlinknode(args, shf->node.nam);
+
+	    execshfunc(shf, args);
+	    ret = lastval;
+	    break;
+	} else {
+	    /* is this shell function a signal trap? */
+	    if (!strncmp(s, "TRAP", 4) &&
+		(signum = getsignum(s + 4)) != -1) {
+		if (settrap(signum, NULL, ZSIG_FUNC)) {
+		    freeeprog(shf->funcdef);
+		    zfree(shf, sizeof(*shf));
+		    state->pc = end;
+		    return 1;
+		}
+
+		/*
+		 * Remove the old node explicitly in case it has
+		 * an alternative name
+		 */
+		removetrapnode(signum);
+	    }
+	    shfunctab->addnode(shfunctab, ztrdup(s), shf);
 	}
-	shfunctab->addnode(shfunctab, ztrdup(s), shf);
     }
     state->pc = end;
-    return 0;
+    return ret;
 }
 
 /* Main entry point to execute a shell function. */
@@ -3906,7 +4069,7 @@ execshfunc(Shfunc shf, LinkList args)
     cmdsp = 0;
     if ((osfc = sfcontext) == SFC_NONE)
 	sfcontext = SFC_DIRECT;
-    doshfunc(shf->node.nam, shf->funcdef, args, shf->node.flags, 0);
+    doshfunc(shf, args, 0);
     sfcontext = osfc;
     free(cmdstack);
     cmdstack = ocs;
@@ -3927,15 +4090,24 @@ static int
 execautofn(Estate state, UNUSED(int do_exec))
 {
     Shfunc shf;
-    char *oldscriptname;
+    char *oldscriptname, *oldscriptfilename;
 
     if (!(shf = loadautofn(state->prog->shf, 1, 0)))
 	return 1;
 
+    /*
+     * Probably we didn't know the filename where this function was
+     * defined yet.
+     */
+    if (funcstack && !funcstack->filename)
+	funcstack->filename = dupstring(shf->filename);
+
     oldscriptname = scriptname;
-    scriptname = dupstring(shf->node.nam);
+    oldscriptfilename = scriptfilename;
+    scriptname = scriptfilename = dupstring(shf->node.nam);
     execode(shf->funcdef, 1, 0);
     scriptname = oldscriptname;
+    scriptfilename = oldscriptfilename;
 
     return lastval;
 }
@@ -3946,11 +4118,12 @@ loadautofn(Shfunc shf, int fksh, int autol)
 {
     int noalias = noaliases, ksh = 1;
     Eprog prog;
+    char *fname;
 
     pushheap();
 
     noaliases = (shf->node.flags & PM_UNALIASED);
-    prog = getfpfunc(shf->node.nam, &ksh);
+    prog = getfpfunc(shf->node.nam, &ksh, &fname);
     noaliases = noalias;
 
     if (ksh == 1) {
@@ -3968,8 +4141,10 @@ loadautofn(Shfunc shf, int fksh, int autol)
 	popheap();
 	return NULL;
     }
-    if (!prog)
+    if (!prog) {
+	zsfree(fname);
 	return NULL;
+    }
     if (ksh == 2 || (ksh == 1 && isset(KSHAUTOLOAD))) {
 	if (autol) {
 	    prog->flags |= EF_RUN;
@@ -3980,6 +4155,7 @@ loadautofn(Shfunc shf, int fksh, int autol)
 	    else
 		shf->funcdef = dupeprog(prog, 0);
 	    shf->node.flags &= ~PM_UNDEFINED;
+	    shf->filename = fname;
 	} else {
 	    VARARR(char, n, strlen(shf->node.nam) + 1);
 	    strcpy(n, shf->node.nam);
@@ -3991,6 +4167,7 @@ loadautofn(Shfunc shf, int fksh, int autol)
 		zwarn("%s: function not defined by file", n);
 		locallevel++;
 		popheap();
+		zsfree(fname);
 		return NULL;
 	    }
 	}
@@ -4001,6 +4178,7 @@ loadautofn(Shfunc shf, int fksh, int autol)
 	else
 	    shf->funcdef = dupeprog(stripkshdef(prog, shf->node.nam), 0);
 	shf->node.flags &= ~PM_UNDEFINED;
+	shf->filename = fname;
     }
     popheap();
 
@@ -4009,6 +4187,14 @@ loadautofn(Shfunc shf, int fksh, int autol)
 
 /*
  * execute a shell function
+ *
+ * name is the name of the function
+ *
+ * prog is the code to execute
+ *
+ * doshargs, if set, are parameters to pass to the function,
+ * in which the first element is the function name (even if
+ * FUNCTIONARGZERO is set as this is handled inside this function).
  *
  * If noreturnval is nonzero, then reset the current return
  * value (lastval) to its value before the shell function
@@ -4019,13 +4205,17 @@ loadautofn(Shfunc shf, int fksh, int autol)
 
 /**/
 mod_export int
-doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
+doshfunc(Shfunc shfunc, LinkList doshargs, int noreturnval)
 {
     char **tab, **x, *oargv0;
     int oldzoptind, oldlastval, oldoptcind, oldnumpipestats, ret;
     int *oldpipestats = NULL;
-    char saveopts[OPT_SIZE], *oldscriptname = scriptname, *fname = dupstring(name);
-    int obreaks;
+    char saveopts[OPT_SIZE], *oldscriptname = scriptname;
+    char *name = shfunc->node.nam;
+    int flags = shfunc->node.flags;
+    char *fname = dupstring(name);
+    int obreaks, saveemulation ;
+    Eprog prog;
     struct funcstack fstack;
 #ifdef MAX_FUNCTION_DEPTH
     static int funcdepth;
@@ -4035,8 +4225,8 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
 
     oargv0 = NULL;
     obreaks = breaks;;
-    if (trapreturn < 0)
-	trapreturn--;
+    if (trap_state == TRAP_STATE_PRIMED)
+	trap_return--;
     oldlastval = lastval;
     oldnumpipestats = numpipestats;
     if (noreturnval) {
@@ -4063,6 +4253,7 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
      * not currently set.  That's because if it gets set in the    *
      * function we need to restore the original options on exit.   */
     memcpy(saveopts, opts, sizeof(opts));
+    saveemulation = emulation;
 
     if (flags & PM_TAGGED)
 	opts[XTRACE] = 1;
@@ -4077,6 +4268,7 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
 	    oargv0 = argzero;
 	    argzero = ztrdup(getdata(node));
 	}
+	/* first node contains name regardless of option */
 	node = node->next;
 	for (; node; node = node->next, x++)
 	    *x = ztrdup(getdata(node));
@@ -4095,11 +4287,22 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
     }
 #endif
     fstack.name = dupstring(name);
-    fstack.caller = dupstring(oargv0 ? oargv0 : argzero);
+    /*
+     * The caller is whatever is immediately before on the stack,
+     * unless we're at the top, in which case it's the script
+     * or interactive shell name.
+     */
+    fstack.caller = funcstack ? funcstack->name :
+	dupstring(oargv0 ? oargv0 : argzero);
     fstack.lineno = lineno;
     fstack.prev = funcstack;
+    fstack.tp = FS_FUNC;
     funcstack = &fstack;
 
+    fstack.flineno = shfunc->lineno;
+    fstack.filename = dupstring(shfunc->filename);
+
+    prog = shfunc->funcdef;
     if (prog->flags & EF_RUN) {
 	Shfunc shf;
 
@@ -4144,6 +4347,7 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
 	saveopts[PRIVILEGED] = opts[PRIVILEGED];
 	saveopts[RESTRICTED] = opts[RESTRICTED];
 	memcpy(opts, saveopts, sizeof(opts));
+	emulation = saveemulation;
     } else {
 	/* just restore a couple. */
 	opts[XTRACE] = saveopts[XTRACE];
@@ -4153,8 +4357,8 @@ doshfunc(char *name, Eprog prog, LinkList doshargs, int flags, int noreturnval)
 
     endtrapscope();
 
-    if (trapreturn < -1)
-	trapreturn++;
+    if (trap_state == TRAP_STATE_PRIMED)
+	trap_return++;
     ret = lastval;
     if (noreturnval) {
 	lastval = oldlastval;
@@ -4219,7 +4423,7 @@ runshfunc(Eprog prog, FuncWrap wrap, char *name)
 
 /**/
 Eprog
-getfpfunc(char *s, int *ksh)
+getfpfunc(char *s, int *ksh, char **fname)
 {
     char **pp, buf[PATH_MAX];
     off_t len;
@@ -4236,8 +4440,11 @@ getfpfunc(char *s, int *ksh)
 	    sprintf(buf, "%s/%s", *pp, s);
 	else
 	    strcpy(buf, s);
-	if ((r = try_dump_file(*pp, s, buf, ksh)))
+	if ((r = try_dump_file(*pp, s, buf, ksh))) {
+	    if (fname)
+		*fname = ztrdup(buf);
 	    return r;
+	}
 	unmetafy(buf, NULL);
 	if (!access(buf, R_OK) && (fd = open(buf, O_RDONLY | O_NOCTTY)) != -1) {
 	    if ((len = lseek(fd, 0, 2)) != -1) {
@@ -4251,8 +4458,11 @@ getfpfunc(char *s, int *ksh)
 		    d = metafy(d, rlen, META_REALLOC);
 
 		    scriptname = dupstring(s);
-		    r = parse_string(d);
+		    r = parse_string(d, 1);
 		    scriptname = oldscriptname;
+
+		    if (fname)
+			*fname = ztrdup(buf);
 
 		    zfree(d, len + 1);
 
@@ -4278,11 +4488,12 @@ getfpfunc(char *s, int *ksh)
 Eprog
 stripkshdef(Eprog prog, char *name)
 {
-    Wordcode pc = prog->prog;
+    Wordcode pc;
     wordcode code;
 
     if (!prog)
 	return NULL;
+    pc = prog->prog;
     code = *pc++;
     if (wc_code(code) != WC_LIST ||
 	(WC_LIST_TYPE(code) & (Z_SYNC|Z_END|Z_SIMPLE)) != (Z_SYNC|Z_END|Z_SIMPLE))
@@ -4417,7 +4628,10 @@ execsave(void)
     es->badcshglob = badcshglob;
     es->cmdoutpid = cmdoutpid;
     es->cmdoutval = cmdoutval;
-    es->trapreturn = trapreturn;
+    es->trap_return = trap_return;
+    es->trap_state = trap_state;
+    es->trapisfunc = trapisfunc;
+    es->traplocallevel = traplocallevel;
     es->noerrs = noerrs;
     es->subsh_close = subsh_close;
     es->underscore = ztrdup(underscore);
@@ -4444,7 +4658,10 @@ execrestore(void)
     badcshglob = exstack->badcshglob;
     cmdoutpid = exstack->cmdoutpid;
     cmdoutval = exstack->cmdoutval;
-    trapreturn = exstack->trapreturn;
+    trap_return = exstack->trap_return;
+    trap_state = exstack->trap_state;
+    trapisfunc = exstack->trapisfunc;
+    traplocallevel = exstack->traplocallevel;
     noerrs = exstack->noerrs;
     subsh_close = exstack->subsh_close;
     setunderscore(exstack->underscore);

@@ -395,3 +395,18 @@
 >OK
 >OK
 >OK
+
+  tmp1='glob/\(\)Ą/*'
+  [[ glob/'()Ą'/foo == $~tmp1 ]] && print "Matched against $tmp1"
+  tmp1='glob/\(\)Ā/*'
+  [[ glob/'()Ā'/bar == $~tmp1 ]] && print "Matched against $tmp1"
+0:Backslashes and metafied characters in patterns
+>Matched against glob/()Ą/*
+>Matched against glob/()Ā/*
+
+  mkdir 梶浦由記 'Пётр Ильич Чайковский'
+  (cd 梶浦由記; print ${${(%):-%~}:t})
+  (cd 'Пётр Ильич Чайковский'; print ${${(%):-%~}:t})
+0:Metafied characters in prompt expansion
+>梶浦由記
+>Пётр Ильич Чайковский

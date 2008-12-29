@@ -256,7 +256,7 @@ inputline(void)
 	    char *pptbuf;
 	    int pptlen;
 	    pptbuf = unmetafy(promptexpand(ingetcpmptl ? *ingetcpmptl : NULL,
-					   0, NULL, NULL), &pptlen);
+					   0, NULL, NULL, NULL), &pptlen);
 	    write(2, (WRITE_ARG_2_T)pptbuf, pptlen);
 	    free(pptbuf);
 	}
@@ -275,7 +275,8 @@ inputline(void)
 	int flags = ZLRF_HISTORY|ZLRF_NOSETTY;
 	if (isset(IGNOREEOF))
 	    flags |= ZLRF_IGNOREEOF;
-	ingetcline = zlereadptr(ingetcpmptl, ingetcpmptr, flags, context);
+	ingetcline = zleentry(ZLE_CMD_READ, ingetcpmptl, ingetcpmptr,
+			      flags, context);
 	histdone |= HISTFLAG_SETTY;
     }
     if (!ingetcline) {

@@ -33,7 +33,12 @@
 /* name of script being sourced */
 
 /**/
-char *scriptname;
+mod_export char *scriptname;     /* is sometimes a function name */
+
+/* filename of script or other file containing code source e.g. autoload */
+
+/**/
+mod_export char *scriptfilename;
 
 #ifdef MULTIBYTE_SUPPORT
 struct widechar_array {
@@ -108,7 +113,7 @@ static void
 zwarning(const char *cmd, const char *fmt, va_list ap)
 {
     if (isatty(2))
-	trashzleptr();
+	zleentry(ZLE_CMD_TRASH);
 
     if (cmd) {
 	if (unset(SHINSTDIN) || locallevel) {
@@ -255,6 +260,9 @@ zerrmsg(FILE *file, const char *fmt, va_list ap)
 {
     const char *str;
     int num;
+#ifdef DEBUG
+    long lnum;
+#endif
 #ifdef HAVE_STRERROR_R
 #define ERRBUFSIZE (80)
     int olderrno;
@@ -286,6 +294,12 @@ zerrmsg(FILE *file, const char *fmt, va_list ap)
 		nicezputs(s, file);
 		break;
 	    }
+#ifdef DEBUG
+	    case 'L':
+		lnum = va_arg(ap, long);
+		fprintf(file, "%ld", lnum);
+		break;
+#endif
 	    case 'd':
 		num = va_arg(ap, int);
 		fprintf(file, "%d", num);
@@ -548,7 +562,7 @@ wcs_nicechar(wchar_t c, size_t *widthp, char **swidep)
     }
 
     if (widthp) {
-	int wcw = wcwidth(c);
+	int wcw = WCWIDTH(c);
 	*widthp = (s - buf);
 	if (wcw >= 0)
 	    *widthp += wcw;
@@ -581,7 +595,7 @@ zwcwidth(wint_t wc)
     /* assume a single-byte character if not valid */
     if (wc == WEOF || unset(MULTIBYTE))
 	return 1;
-    wcw = wcwidth(wc);
+    wcw = WCWIDTH(wc);
     /* if not printable, assume width 1 */
     if (wcw < 0)
 	return 1;
@@ -812,6 +826,7 @@ finddir(char *s)
 {
     static struct nameddir homenode = { {NULL, "", 0}, NULL, 0 };
     static int ffsz;
+    Shfunc func = getshfunc("zsh_directory_name");
 
     /* Invalidate directory cache if argument is NULL.  This is called *
      * whenever a node is added to or removed from the hash table, and *
@@ -827,7 +842,8 @@ finddir(char *s)
 	return finddir_last = NULL;
     }
 
-    if(!strcmp(s, finddir_full) && *finddir_full)
+    /* It's not safe to use the cache while we have function transformations.*/
+    if(!func && !strcmp(s, finddir_full) && *finddir_full)
 	return finddir_last;
 
     if ((int)strlen(s) >= ffsz) {
@@ -839,6 +855,25 @@ finddir(char *s)
     finddir_last=NULL;
     finddir_scan(&homenode.node, 0);
     scanhashtable(nameddirtab, 0, 0, 0, finddir_scan, 0);
+
+    if (func) {
+	char *dir_meta = metafy(finddir_full, strlen(finddir_full),
+				META_ALLOC);
+	char **ares = subst_string_by_func(func, "d", dir_meta);
+	int len;
+	if (ares && arrlen(ares) >= 2 &&
+	    (len = (int)zstrtol(ares[1], NULL, 10)) > finddir_best) {
+	    /* better duplicate this string since it's come from REPLY */
+	    finddir_last = (Nameddir)hcalloc(sizeof(struct nameddir));
+	    finddir_last->node.nam = zhtricat("[", dupstring(ares[0]), "]");
+	    finddir_last->dir = dupstrpfx(finddir_full, len);
+	    finddir_last->diff = len - strlen(finddir_last->node.nam);
+	    finddir_best = len;
+	}
+	if (dir_meta != finddir_full)
+	    zsfree(dir_meta);
+    }
+
     return finddir_last;
 }
 
@@ -1108,25 +1143,31 @@ time_t lastwatch;
 
 /*
  * Call a function given by "name" with optional arguments
- * "lnklist".  If "arrayp" is not zero, we also look through
+ * "lnklist".  If these are present the first argument is the function name.
+ *
+ * If "arrayp" is not zero, we also look through
  * the array "name"_functions and execute functions found there.
+ *
+ * If "retval" is not NULL, the return value of the first hook function to
+ * return non-zero is stored in *"retval".  The return value is not otherwise
+ * available as the calling context is restored.
  */
 
 /**/
 mod_export int
-callhookfunc(char *name, LinkList lnklst, int arrayp)
+callhookfunc(char *name, LinkList lnklst, int arrayp, int *retval)
 {
-    Eprog prog;
+    Shfunc shfunc;
 	/*
 	 * Save stopmsg, since user doesn't get a chance to respond
 	 * to a list of jobs generated in a hook.
 	 */
-    int osc = sfcontext, osm = stopmsg, stat = 1;
+    int osc = sfcontext, osm = stopmsg, stat = 1, ret = 0;
 
     sfcontext = SFC_HOOK;
 
-    if ((prog = getshfunc(name)) != &dummy_eprog) {
-	doshfunc(name, prog, lnklst, 0, 1);
+    if ((shfunc = getshfunc(name))) {
+	ret = doshfunc(shfunc, lnklst, 1);
 	stat = 0;
     }
 
@@ -1141,8 +1182,10 @@ callhookfunc(char *name, LinkList lnklst, int arrayp)
 
 	if ((arrptr = getaparam(arrnam))) {
 	    for (; *arrptr; arrptr++) {
-		if ((prog = getshfunc(*arrptr)) != &dummy_eprog) {
-		    doshfunc(arrnam, prog, lnklst, 0, 1);
+		if ((shfunc = getshfunc(*arrptr))) {
+		    int newret = doshfunc(shfunc, lnklst, 1);
+		    if (!ret)
+			ret = newret;
 		    stat = 0;
 		}
 	    }
@@ -1152,6 +1195,8 @@ callhookfunc(char *name, LinkList lnklst, int arrayp)
     sfcontext = osc;
     stopmsg = osm;
 
+    if (retval)
+	*retval = ret;
     return stat;
 }
 
@@ -1176,7 +1221,7 @@ preprompt(void)
 	char *str;
 	int percents = opts[PROMPTPERCENT];
 	opts[PROMPTPERCENT] = 1;
-	str = promptexpand("%B%S%#%s%b", 0, NULL, NULL);
+	str = promptexpand("%B%S%#%s%b", 0, NULL, NULL, NULL);
 	opts[PROMPTPERCENT] = percents;
 	fprintf(shout, "%s%*s\r", str, (int)columns - 1 - !hasxn, "");
 	free(str);
@@ -1191,7 +1236,7 @@ preprompt(void)
 
     /* If a shell function named "precmd" exists, *
      * then execute it.                           */
-    callhookfunc("precmd", NULL, 1);
+    callhookfunc("precmd", NULL, 1, NULL);
     if (errflag)
 	return;
 
@@ -1199,7 +1244,7 @@ preprompt(void)
      * "periodic" exists, 3) it's been greater than PERIOD since we *
      * executed any such hook, then execute it now.                 */
     if (period && (time(NULL) > lastperiodic + period) &&
-	!callhookfunc("periodic", NULL, 1))
+	!callhookfunc("periodic", NULL, 1, NULL))
 	lastperiodic = time(NULL);
     if (errflag)
 	return;
@@ -1341,7 +1386,8 @@ printprompt4(void)
 
 	opts[XTRACE] = 0;
 	unmetafy(s, &l);
-	s = unmetafy(promptexpand(metafy(s, l, META_NOALLOC), 0, NULL, NULL), &l);
+	s = unmetafy(promptexpand(metafy(s, l, META_NOALLOC),
+				  0, NULL, NULL, NULL), &l);
 	opts[XTRACE] = t;
 
 	fprintf(xtrerr, "%s", s);
@@ -1553,8 +1599,8 @@ adjustwinsize(int from)
 	winchanged =
 #endif /* TIOCGWINSZ */
 	    resetneeded = 1;
-	zrefreshptr();
-	zle_resetpromptptr();
+	zleentry(ZLE_CMD_REFRESH);
+	zleentry(ZLE_CMD_RESET_PROMPT);
     }
 }
 
@@ -1833,8 +1879,8 @@ zstrtol(const char *s, char **t, int base)
 	    base = 8;
     }
     inp = s;
-    if (base > 36) {
-	zerr("invalid base: %d", base);
+    if (base < 2 || base > 36) {
+	zerr("invalid base (must be 2 to 36 inclusive): %d", base);
 	return (zlong)0;
     } else if (base <= 10)
 	for (; *s >= '0' && *s < ('0' + base); s++) {
@@ -2059,9 +2105,8 @@ checkrmall(char *s)
     return (getquery("ny", 1) == 'y');
 }
 
-/**/
-int
-read1char(void)
+static int
+read1char(int echo)
 {
     char c;
 
@@ -2069,6 +2114,8 @@ read1char(void)
 	if (errno != EINTR || errflag || retflag || breaks || contflag)
 	    return -1;
     }
+    if (echo)
+	write(SHTTY, &c, 1);
     return STOUC(c);
 }
 
@@ -2095,12 +2142,26 @@ noquery(int purge)
 int
 getquery(char *valid_chars, int purge)
 {
-    int c, d;
+    int c, d, nl = 0;
     int isem = !strcmp(term, "emacs");
+    struct ttyinfo ti;
 
     attachtty(mypgrp);
+
+    gettyinfo(&ti);
+#ifdef HAS_TIO
+    ti.tio.c_lflag &= ~ECHO;
+    if (!isem) {
+	ti.tio.c_lflag &= ~ICANON;
+	ti.tio.c_cc[VMIN] = 1;
+	ti.tio.c_cc[VTIME] = 0;
+    }
+#else
+    ti.sgttyb.sg_flags &= ~ECHO;
     if (!isem)
-	setcbreak();
+	ti.sgttyb.sg_flags |= CBREAK;
+#endif
+    settyinfo(&ti);
 
     if (noquery(purge)) {
 	if (!isem)
@@ -2109,7 +2170,7 @@ getquery(char *valid_chars, int purge)
 	return 'n';
     }
 
-    while ((c = read1char()) >= 0) {
+    while ((c = read1char(0)) >= 0) {
 	if (c == 'Y')
 	    c = 'y';
 	else if (c == 'N')
@@ -2118,20 +2179,23 @@ getquery(char *valid_chars, int purge)
 	    break;
 	if (c == '\n') {
 	    c = *valid_chars;
+	    nl = 1;
 	    break;
 	}
 	if (strchr(valid_chars, c)) {
-	    write(SHTTY, "\n", 1);
+	    nl = 1;
 	    break;
 	}
 	zbeep();
-	if (icntrl(c))
-	    write(SHTTY, "\b \b", 3);
-	write(SHTTY, "\b \b", 3);
     }
+    if (c >= 0)
+	write(SHTTY, &c, 1);
+    if (nl)
+	write(SHTTY, "\n", 1);
+
     if (isem) {
 	if (c != '\n')
-	    while ((d = read1char()) >= 0 && d != '\n');
+	    while ((d = read1char(1)) >= 0 && d != '\n');
     } else {
 	if (c != '\n' && !valid_chars) {
 #ifdef MULTIBYTE_SUPPORT
@@ -2149,19 +2213,17 @@ getquery(char *valid_chars, int purge)
 
 		    if (ret != MB_INCOMPLETE)
 			break;
-		    c = read1char();
+		    c = read1char(1);
 		    if (c < 0)
 			break;
 		    cc = (char)c;
 		}
 	    }
 #endif
-	    settyinfo(&shttyinfo);
 	    write(SHTTY, "\n", 1);
 	}
-	else
-	    settyinfo(&shttyinfo);
     }
+    settyinfo(&shttyinfo);
     return c;
 }
 
@@ -2310,7 +2372,7 @@ spckword(char **s, int hist, int cmd, int ask)
 		x = 'n';
 	    } else if (shout) {
 		char *pptbuf;
-		pptbuf = promptexpand(sprompt, 0, best, guess);
+		pptbuf = promptexpand(sprompt, 0, best, guess, NULL);
 		zputs(pptbuf, shout);
 		free(pptbuf);
 		fflush(shout);
@@ -2856,15 +2918,45 @@ sepsplit(char *s, char *sep, int allownull, int heap)
 /* Get the definition of a shell function */
 
 /**/
-mod_export Eprog
+mod_export Shfunc
 getshfunc(char *nam)
 {
-    Shfunc shf;
+    return (Shfunc) shfunctab->getnode(shfunctab, nam);
+}
 
-    if (!(shf = (Shfunc) shfunctab->getnode(shfunctab, nam)))
-	return &dummy_eprog;
+/*
+ * Call the function func to substitute string orig by setting
+ * the parameter reply.
+ * Return the array from reply, or NULL if the function returned
+ * non-zero status.
+ * The returned value comes directly from the parameter and
+ * so should be used before there is any chance of that
+ * being changed or unset.
+ * If arg1 is not NULL, it is used as an initial argument to
+ * the function, with the original string as the second argument.
+ */
 
-    return shf->funcdef;
+/**/
+char **
+subst_string_by_func(Shfunc func, char *arg1, char *orig)
+{
+    int osc = sfcontext;
+    LinkList l = newlinklist();
+    char **ret;
+
+    addlinknode(l, func->node.nam);
+    if (arg1)
+	addlinknode(l, arg1);
+    addlinknode(l, orig);
+    sfcontext = SFC_SUBST;
+
+    if (doshfunc(func, l, 1))
+	ret = NULL;
+    else
+	ret = getaparam("reply");
+
+    sfcontext = osc;
+    return ret;
 }
 
 /**/
@@ -2957,7 +3049,7 @@ inittyptab(void)
 	typtab[t0] = IALPHA | IALNUM | IIDENT | IUSER | IWORD;
 #endif
     typtab['_'] = IIDENT | IUSER;
-    typtab['-'] = IUSER;
+    typtab['-'] = typtab['.'] = IUSER;
     typtab[' '] |= IBLANK | INBLANK;
     typtab['\t'] |= IBLANK | INBLANK;
     typtab['\n'] |= INBLANK;
@@ -3080,6 +3172,15 @@ wcsitype(wchar_t c, int itype)
 
 	case IWORD:
 	    if (iswalnum(c))
+		return 1;
+	    /*
+	     * If we are handling combining characters, any punctuation
+	     * characters with zero width needs to be considered part of
+	     * a word.  If we are not handling combining characters then
+	     * logically they are still part of the word, even if they
+	     * don't get displayed properly, so always do this.
+	     */
+	    if (IS_COMBINING(c))
 		return 1;
 	    return !!wmemchr(wordchars_wide.chars, c, wordchars_wide.len);
 
@@ -3959,6 +4060,50 @@ nicedup(const char *s, int heap)
 
 
 /*
+ * The guts of mb_metacharlenconv().  This version assumes we are
+ * processing a true multibyte character string without tokens, and
+ * takes the shift state as an argument.
+ */
+
+/**/
+mod_export int
+mb_metacharlenconv_r(const char *s, wint_t *wcp, mbstate_t *mbsp)
+{
+    size_t ret = MB_INVALID;
+    char inchar;
+    const char *ptr;
+    wchar_t wc;
+
+    for (ptr = s; *ptr; ) {
+	if (*ptr == Meta) {
+	    inchar = *++ptr ^ 32;
+	    DPUTS(!*ptr,
+		  "BUG: unexpected end of string in mb_metacharlen()\n");
+	} else
+	    inchar = *ptr;
+	ptr++;
+	ret = mbrtowc(&wc, &inchar, 1, mbsp);
+
+	if (ret == MB_INVALID)
+	    break;
+	if (ret == MB_INCOMPLETE)
+	    continue;
+	if (wcp)
+	    *wcp = wc;
+	return ptr - s;
+    }
+
+    if (wcp)
+	*wcp = WEOF;
+    /* No valid multibyte sequence */
+    memset(mbsp, 0, sizeof(*mbsp));
+    if (ptr > s) {
+	return 1 + (*s == Meta);	/* Treat as single byte character */
+    } else
+	return 0;		/* Probably shouldn't happen */
+}
+
+/*
  * Length of metafied string s which contains the next multibyte
  * character; single (possibly metafied) character if string is not null
  * but character is not valid (e.g. possibly incomplete at end of string).
@@ -3973,11 +4118,6 @@ nicedup(const char *s, int heap)
 mod_export int
 mb_metacharlenconv(const char *s, wint_t *wcp)
 {
-    char inchar;
-    const char *ptr;
-    size_t ret;
-    wchar_t wc;
-
     if (!isset(MULTIBYTE)) {
 	/* treat as single byte, possibly metafied */
 	if (wcp)
@@ -4000,37 +4140,7 @@ mb_metacharlenconv(const char *s, wint_t *wcp)
 	return 1;
     }
 
-    ret = MB_INVALID;
-    for (ptr = s; *ptr; ) {
-	if (*ptr == Meta) {
-	    inchar = *++ptr ^ 32;
-#ifdef DEBUG
-	    if (!*ptr)
-		fprintf(stderr,
-			"BUG: unexpected end of string in mb_metacharlen()\n");
-#endif
-	} else
-	    inchar = *ptr;
-	ptr++;
-	ret = mbrtowc(&wc, &inchar, 1, &mb_shiftstate);
-
-	if (ret == MB_INVALID)
-	    break;
-	if (ret == MB_INCOMPLETE)
-	    continue;
-	if (wcp)
-	    *wcp = wc;
-	return ptr - s;
-    }
-
-    if (wcp)
-	*wcp = WEOF;
-    /* No valid multibyte sequence */
-    memset(&mb_shiftstate, 0, sizeof(mb_shiftstate));
-    if (ptr > s) {
-	return 1 + (*s == Meta);	/* Treat as single byte character */
-    } else
-	return 0;		/* Probably shouldn't happen */
+    return mb_metacharlenconv_r(s, wcp, &mb_shiftstate);
 }
 
 /*
@@ -4079,7 +4189,7 @@ mb_metastrlen(char *ptr, int width)
 		 * Returns -1 if not a printable character.  We
 		 * turn this into 1 for backward compatibility.
 		 */
-		int wcw = wcwidth(wc);
+		int wcw = WCWIDTH(wc);
 		if (wcw >= 0)
 		    num += wcw;
 		else

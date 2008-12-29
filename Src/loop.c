@@ -245,12 +245,13 @@ execselect(Estate state, UNUSED(int do_exec))
 		    int oef = errflag;
 
 		    isfirstln = 1;
-		    str = zlereadptr(&prompt3, NULL, 0, ZLCON_SELECT);
+		    str = zleentry(ZLE_CMD_READ, &prompt3, NULL,
+				   0, ZLCON_SELECT);
 		    if (errflag)
 			str = NULL;
 		    errflag = oef;
 	    	} else {
-		    str = promptexpand(prompt3, 0, NULL, NULL);
+		    str = promptexpand(prompt3, 0, NULL, NULL, NULL);
 		    zputs(str, stderr);
 		    free(str);
 		    fflush(stderr);
@@ -313,7 +314,7 @@ selectlist(LinkList l, size_t start)
     size_t longest = 1, fct, fw = 0, colsz, t0, t1, ct;
     char **arr, **ap;
 
-    trashzleptr();
+    zleentry(ZLE_CMD_TRASH);
     arr = hlinklist2array(l, 0);
     for (ap = arr; *ap; ap++)
 	if (strlen(*ap) > longest)
@@ -552,17 +553,17 @@ execcase(Estate state, int do_exec)
 	next = state->pc + WC_CASE_SKIP(code);
 
 	if (isset(XTRACE)) {
-	    char *pat2, *opat;
+	    char *opat;
 
 	    pat = dupstring(opat = ecrawstr(state->prog, state->pc, NULL));
 	    singsub(&pat);
 	    save = (!(state->prog->flags & EF_HEAP) &&
 		    !strcmp(pat, opat) && *spprog != dummy_patprog2);
 
-	    pat2 = dupstring(pat);
-	    untokenize(pat2);
 	    printprompt4();
-	    fprintf(xtrerr, "case %s (%s)\n", word, pat2);
+	    fprintf(xtrerr, "case %s (", word);
+	    quote_tokenized_output(pat, xtrerr);
+	    fprintf(xtrerr, ")\n");
 	    fflush(xtrerr);
 	}
 	state->pc += 2;
@@ -631,7 +632,7 @@ exectry(Estate state, int do_exec)
 {
     Wordcode end, always;
     int endval;
-    int save_retflag, save_breaks, save_loops, save_contflag;
+    int save_retflag, save_breaks, save_contflag;
     zlong save_try_errflag, save_try_tryflag;
 
     end = state->pc + WC_TRY_SKIP(state->pc[-1]);
@@ -664,8 +665,6 @@ exectry(Estate state, int do_exec)
     retflag = 0;
     save_breaks = breaks;
     breaks = 0;
-    save_loops = loops;
-    loops = 0;
     save_contflag = contflag;
     contflag = 0;
 
@@ -674,10 +673,12 @@ exectry(Estate state, int do_exec)
 
     errflag = try_errflag ? 1 : 0;
     try_errflag = save_try_errflag;
-    retflag = save_retflag;
-    breaks = save_breaks;
-    loops = save_loops;
-    contflag = save_contflag;
+    if (!retflag)
+	retflag = save_retflag;
+    if (!breaks)
+	breaks = save_breaks;
+    if (!contflag)
+	contflag = save_contflag;
 
     cmdpop();
     popheap();

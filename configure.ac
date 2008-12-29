@@ -210,12 +210,6 @@ AC_SUBST(zprofile)dnl
 AC_SUBST(zlogin)dnl
 AC_SUBST(zlogout)dnl
 
-dnl Do you want large file support, if available?
-ifdef([lfs],[undefine([lfs])])dnl
-AC_ARG_ENABLE(lfs,
-AC_HELP_STRING([--disable-lfs], [turn off support for large files]),
-[lfs="$enableval"], [lfs=yes])
-
 dnl Do you want dynamically loaded binary modules.
 ifdef([dynamic],[undefine([dynamic])])dnl
 AC_ARG_ENABLE(dynamic,
@@ -334,6 +328,19 @@ fi],
 [AC_DEFINE(MAX_FUNCTION_DEPTH, 1000)]
 )
 
+ifdef([default_readnullcmd],[undefine([default_readnullcmd])])dnl
+AH_TEMPLATE([DEFAULT_READNULLCMD],
+[Define default pager used by readnullcmd])
+AC_ARG_ENABLE(readnullcmd,
+AC_HELP_STRING([--enable-readnullcmd=PAGER], [pager used when READNULLCMD is not set]),
+[if test x$enableval = xyes; then
+  AC_DEFINE(DEFAULT_READNULLCMD,"more")
+elif test x$enableval != xno; then
+  AC_DEFINE_UNQUOTED(DEFAULT_READNULLCMD,"$enableval")
+fi],
+[AC_DEFINE(DEFAULT_READNULLCMD,"more")]
+)
+
 dnl Do you want to look for pcre support?
 AC_ARG_ENABLE(pcre,
 AC_HELP_STRING([--enable-pcre],
@@ -343,6 +350,10 @@ dnl Do you want to look for capability support?
 AC_ARG_ENABLE(cap,
 AC_HELP_STRING([--enable-cap],
 [enable the search for POSIX capabilities (may require additional headers to be added by hand)]))
+
+AC_ARG_ENABLE(gdbm,
+AC_HELP_STRING([--disable-gdbm], [turn off search for gdbm library]),
+[gdbm="$enableval"], [gdbm=yes])
 
 dnl ------------------
 dnl CHECK THE COMPILER
@@ -354,16 +365,14 @@ test -z "${LDFLAGS+set}" && LDFLAGS= auto_ldflags=1
 AC_PROG_CC
 
 dnl Check for large file support.
-dnl This needs to be done early to get the stuff into the flags.
-if test x$lfs != xno; then
+
 dnl Gross hack for ReliantUNIX - GCC does not understand getconf options
 dnl For now just disable LFS in this case
 dnl Any takers?
-  if test "$host" = mips-sni-sysv4 && test -n "$GCC"; then
-    : 
-  else
-    zsh_LARGE_FILE_SUPPORT
-  fi
+if test "$host" = mips-sni-sysv4 && test -n "$GCC"; then
+  : 
+else
+  AC_SYS_LARGEFILE
 fi
 
 dnl if the user hasn't specified CFLAGS, then
@@ -669,20 +678,20 @@ fi],
    termcap_curses_order="$ncursesw_test tinfo termcap $ncurses_test curses" ;;
 esac])dnl
 
-AH_TEMPLATE([ZSH_CURSES_NEEDS_XOPEN],
-[Define if the curses libraries need _XOPEN_SOURCE_EXTENDED defined])
-AC_CACHE_CHECK(if the curses library needs _XOPEN_SOURCE_EXTENDED,
-zsh_cv_curses_needs_xopen,
-[case "$host_os" in
-  *openbsd*)
-  zsh_cv_curses_needs_xopen=no
+AH_TEMPLATE([ZSH_NO_XOPEN],
+[Define if _XOPEN_SOURCE_EXTENDED should not be defined to avoid clashes])
+AC_CACHE_CHECK(if _XOPEN_SOURCE_EXTENDED should not be defined,
+zsh_cv_no_xopen,
+[[case "$host_os" in
+  *openbsd*|*freebsd5*|*freebsd6.[012]*|*aix*)
+  zsh_cv_no_xopen=yes
   ;;
   *)
-  zsh_cv_curses_needs_xopen=yes
+  zsh_cv_no_xopen=no
   ;;
-esac])
-if test x$zsh_cv_curses_needs_xopen = xyes; then
-  AC_DEFINE(ZSH_CURSES_NEEDS_XOPEN)
+esac]])
+if test x$zsh_cv_no_xopen = xyes; then
+  AC_DEFINE(ZSH_NO_XOPEN)
 fi
 
 dnl Check for tigetflag (terminfo) before tgetent (termcap).
@@ -829,6 +838,11 @@ elif test x$zsh_cv_decl_ospeed_must_define = xyes; then
   AC_DEFINE(MUST_DEFINE_OSPEED)
 fi
 
+if test x$gdbm != xno; then
+  AC_CHECK_HEADERS(gdbm.h)
+  AC_CHECK_LIB(gdbm, gdbm_open)
+fi
+
 dnl --------------
 dnl CHECK TYPEDEFS
 dnl --------------
@@ -900,26 +914,22 @@ main() { return sizeof(ino_t) < 8; }
     AC_DEFINE(INO_T_IS_64_BIT)
   fi
 
-  if test x$lfs != xno -o x$zsh_cv_off_t_is_64_bit = xyes \
+  if test x$enable_largefile != xno -o x$zsh_cv_off_t_is_64_bit = xyes \
   -o $zsh_cv_ino_t_is_64_bit = yes; then
     AC_CACHE_CHECK(if compiler has a 64 bit type, zsh_cv_64_bit_type,
-    [if test x$lfs != xyes && test x$lfs != xno; then
-      zsh_64_BIT_TYPE(${lfs}, zsh_cv_64_bit_type, force)
-     else
-       zsh_64_BIT_TYPE(long long, zsh_cv_64_bit_type)
-       if test "$zsh_cv_64_bit_type" = no; then
-         zsh_64_BIT_TYPE(quad_t, zsh_cv_64_bit_type)
-       fi
-       if test "$zsh_cv_64_bit_type" = no; then
-         zsh_64_BIT_TYPE(__int64_t, zsh_cv_64_bit_type)
-       fi
-       dnl As a last resort, if we know off_t has 64 bits, use that as
-       dnl the 64-bit integer type.  I don't dare try ino_t since there's
-       dnl probably nothing to stop that being unsigned.
-       if test "$zsh_cv_64_bit_type" = no &&
-          test "$zsh_cv_off_t_is_64_bit" = yes; then
-         zsh_64_BIT_TYPE(off_t, zsh_cv_64_bit_type)
-       fi
+    [zsh_64_BIT_TYPE(long long, zsh_cv_64_bit_type)
+     if test "$zsh_cv_64_bit_type" = no; then
+       zsh_64_BIT_TYPE(quad_t, zsh_cv_64_bit_type)
+     fi
+     if test "$zsh_cv_64_bit_type" = no; then
+       zsh_64_BIT_TYPE(__int64_t, zsh_cv_64_bit_type)
+     fi
+     dnl As a last resort, if we know off_t has 64 bits, use that as
+     dnl the 64-bit integer type.  I don't dare try ino_t since there's
+     dnl probably nothing to stop that being unsigned.
+     if test "$zsh_cv_64_bit_type" = no &&
+        test "$zsh_cv_off_t_is_64_bit" = yes; then
+       zsh_64_BIT_TYPE(off_t, zsh_cv_64_bit_type)
      fi])
     if test "$zsh_cv_64_bit_type" != no; then
       AC_DEFINE_UNQUOTED(ZSH_64_BIT_TYPE, $zsh_cv_64_bit_type)
@@ -1129,7 +1139,8 @@ AC_CHECK_FUNCS(strftime strptime mktime timelocal \
 	       wctomb iconv \
 	       grantpt unlockpt ptsname \
 	       htons ntohs \
-	       regcomp regexec regerror regfree)
+	       regcomp regexec regerror regfree \
+	       gdbm_open)
 AC_FUNC_STRCOLL
 
 if test x$enable_cap = xyes; then
@@ -2266,8 +2277,63 @@ wmemcpy wmemmove wmemset; do
 ])
 AH_TEMPLATE([MULTIBYTE_SUPPORT],
 [Define to 1 if you want support for multibyte character sets.])
+AH_TEMPLATE([BROKEN_WCWIDTH],
+[Define to 1 if the wcwidth() function is present but broken.])
 if test x$zsh_cv_c_unicode_support = xyes; then
   AC_DEFINE(MULTIBYTE_SUPPORT)
+
+  dnl Test for a wcwidth() implementation that gives the wrong width for
+  dnl zero-width combining characters.
+  dnl For the test we use a combining acute accent (\u0301).
+  dnl We input it as UTF-8 since that is the standard we can rely
+  dnl upon most:  we can't rely on a wchar_t being stored as a
+  dnl Unicode code point on all systems.
+  dnl The programme returns 0 only if all the conditions for brokenness
+  dnl are met:
+  dnl - the programme compiled, linked and ran
+  dnl - we successfully set a UTF-8 locale
+  dnl - the locale we set plausibly converted the UTF-8 string
+  dnl   for a zero-width combining character (the only way to be
+  dnl   100% sure would be to output it and ask if it looked right)
+  dnl - the converted wide character gave a non-zero width.
+  dnl locale -a is a fallback; on most systems we should find en_US.UTF-8.
+  [locale_prog='char *my_locales[] = {
+  "en_US.UTF-8", "en_GB.UTF-8", "en.UTF-8", '
+  locale_prog="$locale_prog"`locale -a 2>/dev/null | \
+    sed -e 's/utf8/UTF-8/' | grep UTF-8 | \
+    while read line; do echo " \"$line\","; done;`
+  locale_prog="$locale_prog 0 };
+  #define _XOPEN_SOURCE
+  #include <stdlib.h>
+  #include <locale.h>
+  #include <wchar.h>
+
+  int main() {
+    char **localep;
+    char comb_acute_mb[] = { (char)0xcc, (char)0x81 };
+    wchar_t wc;
+
+    for (localep = my_locales; *localep; localep++)
+      if (setlocale(LC_ALL, *localep) &&
+          mbtowc(&wc, comb_acute_mb, 2) == 2)
+	  break;
+    if (!*localep)
+      return 1;
+    if (wcwidth(wc) == 0)
+      return 1;
+    return 0;
+  }
+  "]
+
+  AC_CACHE_CHECK(if the wcwidth() function is broken,
+  zsh_cv_c_broken_wcwidth,
+  [AC_TRY_RUN([$locale_prog],
+  zsh_cv_c_broken_wcwidth=yes,
+  zsh_cv_c_broken_wcwidth=no,
+  zsh_cv_c_broken_wcwidth=no)])
+  if test x$zsh_cv_c_broken_wcwidth = xyes; then
+    AC_DEFINE(BROKEN_WCWIDTH)
+  fi
 fi
 
 dnl
@@ -2853,13 +2919,13 @@ source code location      : ${srcdir}
 compiler                  : ${CC}
 preprocessor flags        : ${CPPFLAGS}
 executable compiler flags : ${CFLAGS}"
-if test "$dynamic" = yes; then
+if test "x$dynamic" = xyes; then
   echo "\
 module compiler flags     : ${CFLAGS} ${DLCFLAGS}"
 fi
 echo "\
 executable linker flags   : ${LDFLAGS} ${EXELDFLAGS} ${EXTRA_LDFLAGS}"
-if test "$dynamic" = yes; then
+if test "x$dynamic" = xyes; then
   echo "\
 module linker flags       : ${LDFLAGS} ${LIBLDFLAGS} ${DLLDFLAGS}"
 fi
@@ -2875,4 +2941,13 @@ fi
 echo "See config.modules for installed modules and functions.
 "
 
+case x$LIBS in
+  *-lgdbm*)
+  echo "WARNING: zsh has been linked against libgdbm.
+This means the binary is covered by the GNU General Public License.
+This does not affect the source code.
+Run configure with --disable-gdbm if required."
+  ;;
+esac
 
+exit 0

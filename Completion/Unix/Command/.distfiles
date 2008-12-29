@@ -9,6 +9,7 @@ _apm
 _arp
 _arping
 _attr
+_awk
 _baz
 _bison
 _bittorrent
@@ -41,6 +42,7 @@ _dhclient
 _dict
 _diff
 _diffstat
+_django
 _dmidecode
 _du
 _dvi
@@ -68,6 +70,7 @@ _getmail
 _git
 _global
 _gnu_generic
+_gnupod
 _gnutls
 _gpg
 _gphoto2
@@ -81,6 +84,7 @@ _gzip
 _iconv
 _id
 _ifconfig
+_iftop
 _imagemagick
 _init_d
 _ip
@@ -88,6 +92,7 @@ _irssi
 _ispell
 _java
 _joe
+_join
 _killall
 _knock
 _kvno
@@ -138,6 +143,10 @@ _php
 _pine
 _ping
 _pkg-config
+_pkg_instance
+_pkgadd
+_pkginfo
+_pkgrm
 _pon
 _postfix
 _prcs
@@ -155,6 +164,7 @@ _rcs
 _renice
 _ri
 _rlogin
+_rm
 _rrdtool
 _rsync
 _rubber
@@ -169,9 +179,11 @@ _showmount
 _sisu
 _slrn
 _socket
+_sort
 _spamassassin
 _sqsh
 _ssh
+_stgit
 _strip
 _stty
 _su
@@ -181,6 +193,7 @@ _surfraw
 _sysctl
 _tar
 _tardy
+_tcpdump
 _tcptraceroute
 _telnet
 _texinfo
@@ -216,5 +229,7 @@ _yodl
 _yp
 _zcat
 _zdump
+_zfs
 _zip
+_zpool
 '

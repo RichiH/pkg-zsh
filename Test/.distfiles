@@ -7,14 +7,18 @@ A03quoting.ztst
 A04redirect.ztst
 A05execution.ztst
 A06assign.ztst
+A07control.ztst
 B01cd.ztst
 B02typeset.ztst
 B03print.ztst
 B04read.ztst
+B05eval.ztst
+B06fc.ztst
 C01arith.ztst
 C02cond.ztst
 C03traps.ztst
 C04funcdef.ztst
+C05debug.ztst
 D01prompt.ztst
 D02glob.ztst
 D03procsubst.ztst
@@ -32,6 +36,7 @@ V02zregexparse.ztst
 V03mathfunc.ztst
 V04features.ztst
 V05styles.ztst
+V06parameter.ztst
 Y01completion.ztst
 Y02compmatch.ztst
 Y03arguments.ztst

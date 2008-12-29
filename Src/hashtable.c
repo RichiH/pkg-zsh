@@ -819,8 +819,10 @@ disableshfuncnode(HashNode hn, UNUSED(int flags))
     hn->flags |= DISABLED;
     if (!strncmp(hn->nam, "TRAP", 4)) {
 	int signum = getsignum(hn->nam + 4);
-	sigtrapped[signum] &= ~ZSIG_FUNC;
-	unsettrap(signum);
+	if (signum != -1) {
+	    sigtrapped[signum] &= ~ZSIG_FUNC;
+	    unsettrap(signum);
+	}
     }
 }
 
@@ -852,6 +854,7 @@ freeshfuncnode(HashNode hn)
     zsfree(shf->node.nam);
     if (shf->funcdef)
 	freeeprog(shf->funcdef);
+    zsfree(shf->filename);
     zfree(shf, sizeof(struct shfunc));
 }
 
@@ -886,7 +889,7 @@ printshfuncnode(HashNode hn, int printflags)
 	if (f->node.flags & PM_UNDEFINED)
 	    printf("%c undefined\n\t", hashchar);
 	else
-	    t = getpermtext(f->funcdef, NULL);
+	    t = getpermtext(f->funcdef, NULL, 1);
 	if (f->node.flags & PM_TAGGED)
 	    printf("%c traced\n\t", hashchar);
 	if (!t) {

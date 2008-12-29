@@ -153,6 +153,15 @@ findproc(pid_t pid, Job *jptr, Process *pptr, int aux)
 
     for (i = 1; i <= maxjob; i++)
     {
+	/*
+	 * We are only interested in jobs with processes still
+	 * marked as live.  Careful in case there's an identical
+	 * process number in a job we haven't quite got around
+	 * to deleting.
+	 */
+	if (jobtab[i].stat & STAT_DONE)
+	    continue;
+
 	for (pn = aux ? jobtab[i].auxprocs : jobtab[i].procs;
 	     pn; pn = pn->next)
 	    if (pn->pid == pid) {
@@ -450,7 +459,7 @@ update_job(Job jn)
     if ((isset(NOTIFY) || job == thisjob) && (jn->stat & STAT_LOCKED)) {
 	if (printjob(jn, !!isset(LONGLISTJOBS), 0) &&
 	    zleactive)
-	    zrefreshptr();
+	    zleentry(ZLE_CMD_REFRESH);
     }
     if (sigtrapped[SIGCHLD] && job != thisjob)
 	dotrap(SIGCHLD);
@@ -886,7 +895,7 @@ printjob(Job jn, int lng, int synch)
 	Process qn;
 
 	if (!synch)
-	    trashzleptr();
+	    zleentry(ZLE_CMD_TRASH);
 	if (doputnl && !synch) {
 	    doneprint = 1;
 	    putc('\n', fout);

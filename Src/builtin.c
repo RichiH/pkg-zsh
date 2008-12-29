@@ -42,7 +42,7 @@ static struct builtin builtins[] =
     BIN_PREFIX("command", BINF_COMMAND),
     BIN_PREFIX("exec", BINF_EXEC),
     BIN_PREFIX("noglob", BINF_NOGLOB),
-    BUILTIN("[", 0, bin_test, 0, -1, BIN_BRACKET, NULL, NULL),
+    BUILTIN("[", BINF_HANDLES_OPTS, bin_test, 0, -1, BIN_BRACKET, NULL, NULL),
     BUILTIN(".", BINF_PSPECIAL, bin_dot, 1, -1, 0, NULL, NULL),
     BUILTIN(":", BINF_PSPECIAL, bin_true, 0, -1, 0, NULL, NULL),
     BUILTIN("alias", BINF_MAGICEQUALS | BINF_PLUSOPTS, bin_alias, 0, -1, 0, "Lgmrs", NULL),
@@ -84,7 +84,7 @@ static struct builtin builtins[] =
     BUILTIN("history", 0, bin_fc, 0, -1, BIN_FC, "nrdDfEimpPa", "l"),
     BUILTIN("integer", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "HL:%R:%Z:%ghi:%lprtux", "i"),
     BUILTIN("jobs", 0, bin_fg, 0, -1, BIN_JOBS, "dlpZrs", NULL),
-    BUILTIN("kill", 0, bin_kill, 0, -1, 0, NULL, NULL),
+    BUILTIN("kill", BINF_HANDLES_OPTS, bin_kill, 0, -1, 0, NULL, NULL),
     BUILTIN("let", 0, bin_let, 1, -1, 0, NULL, NULL),
     BUILTIN("local", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "AE:%F:%HL:%R:%TUZ:%ahi:%lprtux", NULL),
     BUILTIN("log", 0, bin_log, 0, 0, 0, NULL, NULL),
@@ -109,15 +109,15 @@ static struct builtin builtins[] =
     BUILTIN("readonly", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "AE:%F:%HL:%R:%TUZ:%afghi:%lptux", "r"),
     BUILTIN("rehash", 0, bin_hash, 0, 0, 0, "df", "r"),
     BUILTIN("return", BINF_PSPECIAL, bin_break, 0, 1, BIN_RETURN, NULL, NULL),
-    BUILTIN("set", BINF_PSPECIAL, bin_set, 0, -1, 0, NULL, NULL),
+    BUILTIN("set", BINF_PSPECIAL | BINF_HANDLES_OPTS, bin_set, 0, -1, 0, NULL, NULL),
     BUILTIN("setopt", 0, bin_setopt, 0, -1, BIN_SETOPT, NULL, NULL),
     BUILTIN("shift", BINF_PSPECIAL, bin_shift, 0, -1, 0, NULL, NULL),
     BUILTIN("source", BINF_PSPECIAL, bin_dot, 1, -1, 0, NULL, NULL),
     BUILTIN("suspend", 0, bin_suspend, 0, 0, 0, "f", NULL),
-    BUILTIN("test", 0, bin_test, 0, -1, BIN_TEST, NULL, NULL),
+    BUILTIN("test", BINF_HANDLES_OPTS, bin_test, 0, -1, BIN_TEST, NULL, NULL),
     BUILTIN("ttyctl", 0, bin_ttyctl, 0, 0, 0, "fu", NULL),
     BUILTIN("times", BINF_PSPECIAL, bin_times, 0, 0, 0, NULL, NULL),
-    BUILTIN("trap", BINF_PSPECIAL, bin_trap, 0, -1, 0, NULL, NULL),
+    BUILTIN("trap", BINF_PSPECIAL | BINF_HANDLES_OPTS, bin_trap, 0, -1, 0, NULL, NULL),
     BUILTIN("true", 0, bin_true, 0, -1, 0, NULL, NULL),
     BUILTIN("type", 0, bin_whence, 0, -1, 0, "ampfsw", "v"),
     BUILTIN("typeset", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "AE:%F:%HL:%R:%TUZ:%afghi:%klprtuxmz", NULL),
@@ -131,7 +131,7 @@ static struct builtin builtins[] =
     BUILTIN("whence", 0, bin_whence, 0, -1, 0, "acmpvfsw", NULL),
     BUILTIN("where", 0, bin_whence, 0, -1, 0, "pmsw", "ca"),
     BUILTIN("which", 0, bin_whence, 0, -1, 0, "ampsw", "c"),
-    BUILTIN("zmodload", 0, bin_zmodload, 0, -1, 0, "AFRILP:abcfdilpue", NULL),
+    BUILTIN("zmodload", 0, bin_zmodload, 0, -1, 0, "AFRILP:abcfdilmpue", NULL),
     BUILTIN("zcompile", 0, bin_zcompile, 0, -1, 0, "tUMRcmzka", NULL),
 };
 
@@ -313,10 +313,7 @@ execbuiltin(LinkList args, Builtin bn)
 		*/
 		if (flags & BINF_SKIPINVALID) {
 		    char *p = arg;
-		    if (optstr)
-			while (*++p && strchr(optstr, (int) *p));
-		    else
-			p++;
+		    while (*++p && strchr(optstr, (int) *p));
 		    if (*p)
 			break;
 		}
@@ -394,6 +391,10 @@ execbuiltin(LinkList args, Builtin bn)
 		if (ops.ind['-'])
 		    break;
 	    }
+	} else if (!(flags & BINF_HANDLES_OPTS) && *argv &&
+		   !strcmp(*argv, "--")) {
+	    ops.ind['-'] = 1;
+	    argv++;
 	}
 
 	/* handle built-in options, for overloaded handler functions */
@@ -1139,7 +1140,7 @@ cd_new_pwd(int func, LinkNode dir, int quiet)
     fflush(stdout);
     fflush(stderr);
     if (!quiet)
-	callhookfunc("chpwd", NULL, 1);
+	callhookfunc("chpwd", NULL, 1, NULL);
 
     dirstacksize = getiparam("DIRSTACKSIZE");
     /* handle directory stack sizes out of range */
@@ -1296,10 +1297,12 @@ bin_fc(char *nam, char **argv, Options ops, int func)
     Patprog pprog = NULL;
 
     /* fc is only permitted in interactive shells */
+#ifdef FACIST_INTERACTIVE
     if (!interact) {
 	zwarnnam(nam, "not interactive shell");
 	return 1;
     }
+#endif
     if (OPT_ISSET(ops,'p')) {
 	char *hf = "";
 	zlong hs = DEFAULT_HISTSIZE;
@@ -1414,7 +1417,19 @@ bin_fc(char *nam, char **argv, Options ops, int func)
     /* default values of first and last, and range checking */
     if (last == -1) {
 	if (OPT_ISSET(ops,'l') && first < curhist) {
-	    last = addhistnum(curline.histnum,-1,0);
+	    /*
+	     * When listing base our calculations on curhist,
+	     * to show anything added since the edited history line.
+	     * Also, in that case curhist will have been modified
+	     * past the current history line; then we want to
+	     * show everything, because the user expects to
+	     * see the result of "print -s".  Otherwise, we subtract
+	     * -1 from the line, because the user doesn't usually expect
+	     * to see the command line that caused history to be
+	     * listed.
+	     */
+	    last = (curline.histnum == curhist) ? addhistnum(curhist,-1,0)
+		: curhist;
 	    if (last < firsthist())
 		last = firsthist();
 	}
@@ -1422,7 +1437,15 @@ bin_fc(char *nam, char **argv, Options ops, int func)
 	    last = first;
     }
     if (first == -1) {
-	first = OPT_ISSET(ops,'l')? addhistnum(curline.histnum,-16,0)
+	/*
+	 * When listing, we want to see everything that's been
+	 * added to the history, including by print -s, so use
+	 * curhist.
+	 * When reexecuting, we want to restrict to the last edited
+	 * command line to avoid giving the user a nasty turn
+	 * if some helpful soul ran "print -s 'rm -rf /'".
+	 */
+	first = OPT_ISSET(ops,'l')? addhistnum(curhist,-16,0)
 			: addhistnum(curline.histnum,-1,0);
 	if (first < 1)
 	    first = 1;
@@ -1446,6 +1469,21 @@ bin_fc(char *nam, char **argv, Options ops, int func)
 	    unqueue_signals();
 	    zwarnnam("fc", "can't open temp file: %e", errno);
 	} else {
+	    /*
+	     * Nasty behaviour results if we use the current history
+	     * line here.  Treat it as if it doesn't exist, unless
+	     * that gives us an empty range.
+	     */
+	    if (last >= curhist) {
+		last = curhist - 1;
+		if (first > last) {
+		    unqueue_signals();
+		    zwarnnam("fc",
+		      "current history line would recurse endlessly, aborted");
+		    unlink(fil);
+		    return 1;
+		}
+	    }
 	    ops->ind['n'] = 1;	/* No line numbers here. */
 	    if (!fclist(out, ops, first, last, asgf, pprog)) {
 		char *editor;
@@ -1742,6 +1780,11 @@ typeset_setbase(const char *name, Param pm, Options ops, int on, int always)
 		zwarnnam(name, "bad base value: %s", arg);
 	    else
 		zwarnnam(name, "bad precision value: %s", arg);
+	    return 1;
+	}
+	if (pm->base < 2 || pm->base > 36) {
+	    zwarnnam(name, "invalid base (must be 2 to 36 inclusive): %d",
+		     pm->base);
 	    return 1;
 	}
     } else if (always)
@@ -2453,10 +2496,19 @@ bin_typeset(char *name, char **argv, Options ops, int func)
 
     /* Take arguments literally.  Don't glob */
     while ((asg = getasg(*argv++))) {
-	if (!typeset_single(name, asg->name,
-			    (Param) (paramtab == realparamtab ?
-				     gethashnode2(paramtab, asg->name) :
-				     paramtab->getnode(paramtab, asg->name)),
+	HashNode hn = (paramtab == realparamtab ?
+		       gethashnode2(paramtab, asg->name) :
+		       paramtab->getnode(paramtab, asg->name));
+	if (OPT_ISSET(ops,'p')) {
+	    if (hn)
+		printparamnode(hn, printflags);
+	    else {
+		zwarnnam(name, "no such variable: %s", asg->name);
+		returnval = 1;
+	    }
+	    continue;
+	}
+	if (!typeset_single(name, asg->name, (Param)hn,
 			    func, on, off, roff, asg->value, NULL,
 			    ops, 0))
 	    returnval = 1;
@@ -3210,7 +3262,7 @@ bin_hash(char *name, char **argv, Options ops, UNUSED(int func))
     }
 
     queue_signals();
-    while (*argv) {
+    for (;*argv;++argv) {
 	void *hn;
 	if (OPT_ISSET(ops,'m')) {
 	    /* with the -m option, treat the argument as a glob pattern */
@@ -3223,7 +3275,12 @@ bin_hash(char *name, char **argv, Options ops, UNUSED(int func))
 		zwarnnam(name, "bad pattern : %s", *argv);
 		returnval = 1;
 	    }
-	} else if ((asg = getasg(*argv)) && asg->value) {
+            continue;
+	}
+        if (!(asg = getasg(*argv))) {
+	    zwarnnam(name, "bad assignment");
+	    returnval = 1;
+        } else if (asg->value) {
 	    if(isset(RESTRICTED)) {
 		zwarnnam(name, "restricted: %s", asg->value);
 		returnval = 1;
@@ -3231,9 +3288,19 @@ bin_hash(char *name, char **argv, Options ops, UNUSED(int func))
 		/* The argument is of the form foo=bar, *
 		 * so define an entry for the table.    */
 		if(OPT_ISSET(ops,'d')) {
-		    Nameddir nd = hn = zshcalloc(sizeof *nd);
-		    nd->node.flags = 0;
-		    nd->dir = ztrdup(asg->value);
+		    /* shouldn't return NULL if asg->name is not NULL */
+		    if (*itype_end(asg->name, IUSER, 0)) {
+			zwarnnam(name,
+				 "invalid character in directory name: %s",
+				 asg->name);
+			returnval = 1;
+			argv++;
+			continue;
+		    } else {
+			Nameddir nd = hn = zshcalloc(sizeof *nd);
+			nd->node.flags = 0;
+			nd->dir = ztrdup(asg->value);
+		    }
 		} else {
 		    Cmdnam cn = hn = zshcalloc(sizeof *cn);
 		    cn->node.flags = HASHED;
@@ -3261,7 +3328,6 @@ bin_hash(char *name, char **argv, Options ops, UNUSED(int func))
 		ht->printnode(hn, 0);
 	} else if(OPT_ISSET(ops,'v'))
 	    ht->printnode(hn, 0);
-	argv++;
     }
     unqueue_signals();
     return returnval;
@@ -3571,8 +3637,10 @@ bin_print(char *name, char **args, Options ops, int func)
 	     * messy memory management, stick it on the heap
 	     * instead.
 	     */
-	    char *str = unmetafy(promptexpand(metafy(args[n], len[n],
-						     META_NOALLOC), 0, NULL, NULL), &len[n]);
+	    char *str = unmetafy(
+		promptexpand(metafy(args[n], len[n], META_NOALLOC),
+			     0, NULL, NULL, NULL),
+		&len[n]);
 	    args[n] = dupstrpfx(str, len[n]);
 	    free(str);
 	}
@@ -3629,8 +3697,11 @@ bin_print(char *name, char **args, Options ops, int func)
     if (OPT_ISSET(ops,'o') || OPT_ISSET(ops,'O')) {
 	int flags;
 
-	if (fmt && !*args)
+	if (fmt && !*args) {
+	    if (fout != stdout)
+	        fclose(fout);
 	    return 0;
+	}
 	flags = OPT_ISSET(ops,'i') ? SORTIT_IGNORING_CASE : 0;
 	if (OPT_ISSET(ops,'O'))
 	    flags |= SORTIT_BACKWARDS;
@@ -3668,7 +3739,7 @@ bin_print(char *name, char **args, Options ops, int func)
 			width += l;
 			break;
 		    }
-		    wcw = wcwidth(wc);
+		    wcw = WCWIDTH(wc);
 		    /* treat unprintable as 0 */
 		    if (wcw > 0)
 			width += wcw;
@@ -4421,6 +4492,11 @@ bin_break(char *name, char **argv, UNUSED(Options ops), int func)
 	nump = 1;
     }
 
+    if (nump > 0 && (func == BIN_CONTINUE || func == BIN_BREAK) && num <= 0) {
+	zerrnam(name, "argument is not positive: %d", num);
+	return 1;
+    }
+
     switch (func) {
     case BIN_CONTINUE:
 	if (!loops) {   /* continue is only permitted in loops */
@@ -4440,8 +4516,10 @@ bin_break(char *name, char **argv, UNUSED(Options ops), int func)
 	    retflag = 1;
 	    breaks = loops;
 	    lastval = num;
-	    if (trapreturn == -2)
-		trapreturn = lastval;
+	    if (trap_state == TRAP_STATE_PRIMED && trap_return == -2) {
+		trap_state = TRAP_STATE_FORCE_RETURN;
+		trap_return = lastval;
+	    }
 	    return lastval;
 	}
 	zexit(num, 0);	/* else treat return as logout/exit */
@@ -4571,7 +4649,7 @@ zexit(int val, int from_where)
     lastval = val;
     if (sigtrapped[SIGEXIT])
 	dotrap(SIGEXIT);
-    callhookfunc("zshexit", NULL, 1);
+    callhookfunc("zshexit", NULL, 1, NULL);
     runhookdef(EXITHOOK, NULL);
     if (opts[MONITOR] && interact && (SHTTY != -1)) {
        release_pgrp();
@@ -4675,7 +4753,7 @@ bin_emulate(UNUSED(char *nam), char **argv, Options ops, UNUSED(int func))
 /* eval: simple evaluation */
 
 /**/
-int ineval;
+mod_export int ineval;
 
 /**/
 int
@@ -4683,28 +4761,71 @@ bin_eval(UNUSED(char *nam), char **argv, UNUSED(Options ops), UNUSED(int func))
 {
     Eprog prog;
     char *oscriptname = scriptname;
-    int oineval = ineval;
+    int oineval = ineval, fpushed;
+    struct funcstack fstack;
+
     /*
      * If EVALLINENO is not set, we use the line number of the
      * environment and must flag this up to exec.c.  Otherwise,
      * we use a special script name to indicate the special line number.
      */
     ineval = !isset(EVALLINENO);
-    if (!ineval)
+    if (!ineval) {
 	scriptname = "(eval)";
+	fstack.prev = funcstack;
+	fstack.name = scriptname;
+	fstack.caller = funcstack ? funcstack->name : dupstring(argzero);
+	fstack.lineno = lineno;
+	fstack.tp = FS_EVAL;
 
-    prog = parse_string(zjoin(argv, ' ', 1));
+	/*
+	 * To get file line numbers, we need to know if parent is
+	 * the original script/shell or a sourced file, in which
+	 * case we use the line number raw, or a function or eval,
+	 * in which case we need to deduce where that came from.
+	 *
+	 * This replicates the logic for working out the information
+	 * for $funcfiletrace---eval is similar to an inlined function
+	 * call from a tracing perspective.
+	 */
+	if (!funcstack || funcstack->tp == FS_SOURCE) {
+	    fstack.flineno = fstack.lineno;
+	    fstack.filename = fstack.caller;
+	} else {
+	    fstack.flineno = funcstack->flineno + lineno;
+	    /*
+	     * Line numbers in eval start from 1, not zero,
+	     * so offset by one to get line in file.
+	     */
+	    if (funcstack->tp == FS_EVAL)
+		fstack.flineno--;
+	    fstack.filename = funcstack->filename;
+	    if (!fstack.filename)
+		fstack.filename = "";
+	}
+	funcstack = &fstack;
+
+	fpushed = 1;
+    } else
+	fpushed = 0;
+
+    prog = parse_string(zjoin(argv, ' ', 1), 1);
     if (prog) {
-	lastval = 0;
+	if (wc_code(*prog->prog) != WC_LIST) {
+	    /* No code to execute */
+	    lastval = 0;
+	} else {
+	    execode(prog, 1, 0);
 
-	execode(prog, 1, 0);
-
-	if (errflag)
-	    lastval = errflag;
+	    if (errflag)
+		lastval = errflag;
+	}
     } else {
 	lastval = 1;
     }
 
+    if (fpushed)
+	funcstack = funcstack->prev;
 
     errflag = 0;
     scriptname = oscriptname;
@@ -4732,13 +4853,14 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
     char *reply, *readpmpt;
     int bsiz, c = 0, gotnl = 0, al = 0, first, nchars = 1, bslash, keys = 0;
     int haso = 0;	/* true if /dev/tty has been opened specially */
-    int isem = !strcmp(term, "emacs"), izle = zleactive && getkeyptr;
+    int isem = !strcmp(term, "emacs"), izle = zleactive;
     char *buf, *bptr, *firstarg, *zbuforig;
     LinkList readll = newlinklist();
     FILE *oshout = NULL;
     int readchar = -1, val, resettty = 0;
     struct ttyinfo saveti;
     char d;
+    long izle_timeout = 0;
 #ifdef MULTIBYTE_SUPPORT
     wchar_t delim = L'\n', wc;
     mbstate_t mbs;
@@ -4900,18 +5022,32 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 		timeout = (zlong)mn.u.l * (zlong)1000000;
 	    }
 	}
-	if (readfd == -1 ||
-	    !read_poll(readfd, &readchar, keys && !zleactive, timeout)) {
-	    if (OPT_ISSET(ops,'k') && !zleactive && !isem)
-		settyinfo(&shttyinfo);
-	    else if (resettty && SHTTY != -1)
-	      settyinfo(&saveti);
-	    if (haso) {
-		fclose(shout);
-		shout = oshout;
-		SHTTY = -1;
+	if (izle) {
+	    /*
+	     * Timeout is in 100ths of a second rather than us.
+	     * See calc_timeout() in zle_main for format of this.
+	     */
+	    timeout = -(timeout/(zlong)10000 + 1L);
+	    izle_timeout = (long)timeout;
+#ifdef LONG_MAX
+	    /* saturate if range exceeded */
+	    if ((zlong)izle_timeout != timeout)
+		izle_timeout = LONG_MAX;
+#endif
+	} else {
+	    if (readfd == -1 ||
+		!read_poll(readfd, &readchar, keys && !zleactive, timeout)) {
+		if (OPT_ISSET(ops,'k') && !zleactive && !isem)
+		    settyinfo(&shttyinfo);
+		else if (resettty && SHTTY != -1)
+		    settyinfo(&saveti);
+		if (haso) {
+		    fclose(shout);
+		    shout = oshout;
+		    SHTTY = -1;
+		}
+		return 1;
 	    }
-	    return 1;
 	}
     }
 
@@ -4927,7 +5063,8 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 
 	do {
 	    if (izle) {
-		if ((val = getkeyptr(0, NULL)) < 0) {
+		zleentry(ZLE_CMD_GET_KEY, izle_timeout, NULL, &val);
+		if (val < 0) {
 		    eof = 1;
 		    break;
 		}
@@ -5032,9 +5169,13 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 	if (izle) {
 #ifdef MULTIBYTE_SUPPORT
 	    int key;
+	    char c;
 
-	    while ((key = getkeyptr(0, NULL)) >= 0) {
-		char c = (char)key;
+	    for (;;) {
+		zleentry(ZLE_CMD_GET_KEY, izle_timeout, NULL, &key);
+		if (key < 0)
+		    break;
+		c = (char)key;
 		/*
 		 * If multibyte, it can't be y, so we don't care
 		 * what key gets set to; just read to end of character.
@@ -5044,7 +5185,8 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 		    break;
 	    }
 #else
-	    int key = getkeyptr(0, NULL);
+	    int key;
+	    zleentry(ZLE_CMD_GET_KEY, izle_timeout, NULL, &key);
 #endif
 
 	    readbuf[0] = (key == 'y' ? 'y' : 'n');
@@ -5087,7 +5229,7 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 #endif
 	/* get input, a character at a time */
 	while (!gotnl) {
-	    c = zread(izle, &readchar);
+	    c = zread(izle, &readchar, izle_timeout);
 	    /* \ at the end of a line indicates a continuation *
 	     * line, except in raw mode (-r option)            */
 #ifdef MULTIBYTE_SUPPORT
@@ -5277,7 +5419,7 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
     if (!gotnl) {
 	sigset_t s = child_unblock();
 	for (;;) {
-	    c = zread(izle, &readchar);
+	    c = zread(izle, &readchar, izle_timeout);
 #ifdef MULTIBYTE_SUPPORT
 	    if (c == EOF) {
 		/* not waiting to be completed any more */
@@ -5418,13 +5560,14 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 
 /**/
 static int
-zread(int izle, int *readchar)
+zread(int izle, int *readchar, long izle_timeout)
 {
     char cc, retry = 0;
     int ret;
 
     if (izle) {
-	int c = getkeyptr(0, NULL);
+	int c;
+	zleentry(ZLE_CMD_GET_KEY, izle_timeout, NULL, &c);
 
 	return (c < 0 ? EOF : c);
     }
@@ -5631,7 +5774,7 @@ bin_trap(char *name, char **argv, UNUSED(Options ops), UNUSED(int func))
 		if (!siglists[sig])
 		    printf("trap -- '' %s\n", name);
 		else {
-		    s = getpermtext(siglists[sig], NULL);
+		    s = getpermtext(siglists[sig], NULL, 0);
 		    printf("trap -- ");
 		    quotedzputs(s, stdout);
 		    printf(" %s\n", name);
@@ -5666,7 +5809,7 @@ bin_trap(char *name, char **argv, UNUSED(Options ops), UNUSED(int func))
     arg = *argv++;
     if (!*arg)
 	prog = &dummy_eprog;
-    else if (!(prog = parse_string(arg))) {
+    else if (!(prog = parse_string(arg, 1))) {
 	zwarnnam(name, "couldn't parse trap command");
 	return 1;
     }
