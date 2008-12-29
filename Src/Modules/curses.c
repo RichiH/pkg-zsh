@@ -874,16 +874,17 @@ zccmd_attr(const char *nam, char **args)
 	    if ((zca = zcurses_attrget(w->win, ptr)) == NULL) {
 		zwarnnam(nam, "attribute `%s' not known", ptr);
 		ret = 1;
-	    }
-	    switch(onoff) {
-		case ZCURSES_ATTRON:
-		    if (wattron(w->win, zca->number) == ERR)
-			ret = 1;
-		    break;
-		case ZCURSES_ATTROFF:
-		    if (wattroff(w->win, zca->number) == ERR)
-			ret = 1;
-		    break;
+	    } else {
+		switch(onoff) {
+		    case ZCURSES_ATTRON:
+			if (wattron(w->win, zca->number) == ERR)
+			    ret = 1;
+			break;
+		    case ZCURSES_ATTROFF:
+			if (wattroff(w->win, zca->number) == ERR)
+			    ret = 1;
+			break;
+		}
 	    }
 	}
     }
@@ -948,14 +949,17 @@ zccmd_bg(const char *nam, char **args)
 	    if ((zca = zcurses_attrget(w->win, ptr)) == NULL) {
 		zwarnnam(nam, "attribute `%s' not known", ptr);
 		ret = 1;
-	    }
-	    switch(onoff) {
-		case ZCURSES_ATTRON:
-		    ch |= zca->number;
-		    break;
-		case ZCURSES_ATTROFF:
-		    ch &= ~zca->number;
-		    break;
+	    } else {
+		switch(onoff) {
+		    case ZCURSES_ATTRON:
+			if (wattron(w->win, zca->number) == ERR)
+			    ret = 1;
+			break;
+		    case ZCURSES_ATTROFF:
+			if (wattroff(w->win, zca->number) == ERR)
+			    ret = 1;
+			break;
+		}
 	    }
 	}
     }
@@ -1044,7 +1048,7 @@ zccmd_input(const char *nam, char **args)
 #ifdef NCURSES_MOUSE_VERSION
 	if (!(zcurses_flags & ZCF_MOUSE_ACTIVE) ||
 	    (zcurses_flags & ZCF_MOUSE_MASK_CHANGED)) {
-	    if (mousemask(zcurses_mouse_mask, NULL) == ERR) {
+	    if (mousemask(zcurses_mouse_mask, NULL) == (mmask_t)ERR) {
 		zwarnnam(nam, "current mouse mode is not supported");
 		return 1;
 	    }

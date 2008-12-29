@@ -1,4 +1,4 @@
-.TH "ZSHMODULES" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHMODULES" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .SH "NAME"
 zshmodules \- zsh loadable modules
 .\" Yodl file: Zsh/modules.yo
@@ -229,7 +229,9 @@ for regular files
 for directories
 .TP
 \fBln 36\fP
-for symbolic links
+for symbolic links\&.  If this has the special value \fBtarget\fP,
+symbolic links are dereferenced and the target file used to
+determine the display format\&.
 .TP
 \fBpi 31\fP
 for named pipes (FIFOs)
@@ -243,11 +245,30 @@ for block devices
 \fBcd 44;37\fP
 for character devices
 .TP
-\fBex 35\fP
-for executable files
+\fBor\fP \fInone\fP
+for a symlink to nonexistent file (default is the value defined for \fBln\fP)
 .TP
 \fBmi\fP \fInone\fP
-for a non\-existent file (default is the value defined for \fBfi\fP)
+for a non\-existent file (default is the value defined for \fBfi\fP); this code
+is currently not used
+.TP
+\fBsu 37;41\fP
+for files with setuid bit set
+.TP
+\fBsg 30;43\fP
+for files with setgid bit set
+.TP
+\fBtw 30;42\fP
+for world writable directories with sticky bit set
+.TP
+\fBow 34;43\fP
+for world writable directories without sticky bit set
+.TP
+\fBst 37;44\fP
+for directories with sticky bit set but not world writable
+.TP
+\fBex 35\fP
+for executable files
 .TP
 \fBlc \ee[\fP
 for the left code (see below)
@@ -269,13 +290,14 @@ Apart from these strings, the \fIname\fP may also be an asterisk
 (`\fB*\fP\&') followed by any string\&. The \fIvalue\fP given for such a
 string will be used for all files whose name ends with the string\&.
 The \fIname\fP may also be an equals sign (`\fB=\fP\&') followed by a
-pattern\&.  The \fIvalue\fP given for this pattern will be used for all
+pattern; the \fBEXTENDED_GLOB\fP option will be turned on for evaluation
+of the pattern\&.  The \fIvalue\fP given for this pattern will be used for all
 matches (not just filenames) whose display string are matched by
-the pattern\&.  Definitions for both of these take precedence over the
-values defined for file types and the form with the leading asterisk 
-takes precedence over the form with the leading equal sign\&.
+the pattern\&.  Definitions for the form with the leading equal sign take
+precedence over the values defined for file types, which in turn take
+precedence over the form with the leading asterisk (file extensions)\&.
 .PP
-The last form also allows different parts of the displayed
+The leading\-equals form also allows different parts of the displayed
 strings to be colored differently\&.  For this, the pattern has to use the
 `\fB(#b)\fP\&' globbing flag and pairs of parentheses surrounding the
 parts of the strings that are to be colored differently\&.  In this case 
@@ -325,7 +347,8 @@ To enable scrolling through a completion list, the \fBLISTPROMPT\fP
 parameter must be set\&.  Its value will be used as the prompt; if it
 is the empty string, a default prompt will be used\&.  The value may
 contain escapes of the form `\fB%x\fP\&'\&.  It supports the escapes
-`\fB%B\fP\&', `\fB%b\fP', `\fB%S\fP', `\fB%s\fP', `\fB%U\fP', `\fB%u\fP' and
+`\fB%B\fP\&', `\fB%b\fP', `\fB%S\fP', `\fB%s\fP', `\fB%U\fP', `\fB%u\fP', `\fB%F\fP',
+`\fB%f\fP\&', `\fB%K\fP', `\fB%k\fP' and
 `\fB%{\&.\&.\&.%}\fP\&' used also in shell prompts as well as three pairs of
 additional sequences: a `\fB%l\fP\&' or `\fB%L\fP' is replaced by the number
 of the last line shown and the total number of lines in the form
@@ -703,7 +726,7 @@ various parameters\&.
 \fBzcurses\fP \fBclear\fP \fItargetwin\fP [ \fBredraw\fP | \fBeol\fP | \fBbot\fP ]
 .TP
 .PD 0
-\fBzcurses\fP \fBlocation\fP \fItargetwin\fP \fIarray\fP
+\fBzcurses\fP \fBposition\fP \fItargetwin\fP \fIarray\fP
 .TP
 .PD 0
 \fBzcurses\fP \fBchar\fP \fItargetwin\fP \fIcharacter\fP 
@@ -712,7 +735,7 @@ various parameters\&.
 \fBzcurses\fP \fBstring\fP \fItargetwin\fP \fIstring\fP 
 .TP
 .PD 0
-\fBzcurses\fP \fBborder\fP \fItargetwin\fP \fIborder\fP (
+\fBzcurses\fP \fBborder\fP \fItargetwin\fP \fIborder\fP 
 .TP
 .PD 0
 \fBzcurses\fP \fBattr\fP \fItargetwin\fP [ \fI{+/\-}attribute\fP | \fIfg_col\fP\fB/\fP\fIbg_col\fP ] [\&.\&.\&.]
@@ -787,7 +810,7 @@ line\&.  With the option
 \fBbot\fP, \fItargetwin\fP is cleared to the end of the window, i\&.e
 everything to the right and below the cursor is cleared\&.
 .PP
-The subcommand \fBlocation\fP writes various positions associated with
+The subcommand \fBposition\fP writes various positions associated with
 \fItargetwin\fP into the array named \fIarray\fP\&.
 These are, in order:
 .PD 0
@@ -1047,7 +1070,17 @@ module\&.
 .SH "THE ZSH/FILES MODULE"
 .\" Yodl file: Zsh/mod_files.yo
 
-The \fBzsh/files\fP module makes some standard commands available as builtins:
+The \fBzsh/files\fP module makes available some common commands for file
+manipulation as builtins; these commands are probably not needed for
+many normal situations but can be useful in emergency recovery
+situations with constrained resources\&.  The commands do not implement
+all features now required by relevant standards committees\&.
+.PP
+For all commands, a variant beginning \fBzf_\fP is also available and loaded
+automatically\&.  Using the features capability of zmodload will let you load
+only those names you want\&.
+.PP
+The commands loaded by default are:
 .PP
 .PD 0
 .TP
@@ -1108,10 +1141,10 @@ a result of directories being moved up the tree\&.
 .RE
 .TP
 .PD 0
-\fBln\fP [ \fB\-dfis\fP ] \fIfilename\fP \fIdest\fP
+\fBln\fP [ \fB\-dfhins\fP ] \fIfilename\fP \fIdest\fP
 .TP
 .PD
-\fBln\fP [ \fB\-dfis\fP ] \fIfilename\fP \&.\&.\&. \fIdir\fP
+\fBln\fP [ \fB\-dfhins\fP ] \fIfilename\fP \&.\&.\&. \fIdir\fP
 Creates hard (or, with \fB\-s\fP, symbolic) links\&.  In the first form, the
 specified \fIdest\fPination is created, as a link to the specified
 \fIfilename\fP\&.  In the second form, each of the \fIfilename\fPs is
@@ -1129,6 +1162,16 @@ By default, existing files cannot be replaced by links\&.
 The \fB\-i\fP option causes the user to be queried about replacing
 existing files\&.  The \fB\-f\fP option causes existing files to be
 silently deleted, without querying\&.  \fB\-f\fP takes precedence\&.
+.PP
+The \fB\-h\fP and \fB\-n\fP options are identical and both exist for
+compatibility; either one indicates that if the target is a symlink
+then it should not be dereferenced\&.
+Typically this is used in combination with \fB\-sf\fP so that if an
+existing link points to a directory then it will be removed,
+instead of followed\&.
+If this option is used with multiple filenames and the target
+is a symbolic link pointing to a directory then the result is
+an error\&.
 .RE
 .TP
 \fBmkdir\fP [ \fB\-p\fP ] [ \fB\-m\fP \fImode\fP ] \fIdir\fP \&.\&.\&.
@@ -1233,15 +1276,21 @@ every file in the current directory without the usual `\fBrm *\fP\&' test\&.
 .PP
 The parameter \fBmapfile\fP may be made read\-only; in that case, files
 referenced may not be written or deleted\&.
+.PP
+A file may conveniently be read into an array as one line per element
+with the form
+`\fIarray\fP\fB=("${(f)mapfile[\fP\fIfilename\fP\fB]}")\fP\&'\&.
+The double quotes are necessary to prevent empty lines from being
+removed\&.
 .RE
 .RE
 .PP
 .SS "Limitations"
 .PP
 Although reading and writing of the file in question is efficiently
-handled, zsh\&'s internal memory management may be arbitrarily baroque\&.  Thus
-it should not automatically be assumed that use of \fBmapfile\fP represents a
-gain in efficiency over use of other mechanisms\&.  Note in particular that
+handled, zsh\&'s internal memory management may be arbitrarily baroque;
+however, \fBmapfile\fP is usually very much more efficient than
+anything involving a loop\&.  Note in particular that
 the whole contents of the file will always reside physically in memory when
 accessed (possibly multiple times, due to standard parameter substitution
 operations)\&.  In particular, this means handling of sufficiently long files
@@ -1542,15 +1591,46 @@ they stand for\&.
 This associative array maps user names to the pathnames of their home
 directories\&.
 .TP
+\fBfuncfiletrace\fP
+This array contains the absolute line numbers and corresponding file
+names for the point where the current function, sourced file, or (if
+\fBEVAL_LINENO\fP is set) \fBeval\fP command was
+called\&.  The array is of the same length as \fBfuncsourcetrace\fP and
+\fBfunctrace\fP, but differs from \fBfuncsourcetrace\fP in that the line and
+file are the point of call, not the point of definition, and differs
+from \fBfunctrace\fP in that all values are absolute line numbers in
+files, rather than relative to the start of a function, if any\&.
+.TP
+\fBfuncsourcetrace\fP
+This array contains the file names and line numbers of the
+points where the functions, sourced files, and (if \fBEVAL_LINENO\fP is set)
+\fBeval\fP commands currently being executed were
+defined\&.  The line number is the line where the `\fBfunction\fP \fIname\fP\&'
+or `\fIname\fP \fB()\fP\&' started\&.  In the case of an autoloaded
+function  the line number is reported as zero\&.
+The format of each element is \fIfilename\fP\fB:\fP\fIlineno\fP\&.
+For functions autoloaded from a file in native zsh format, where only the
+body of the function occurs in the file, or for files that have been
+executed by the \fBsource\fP or \fB\&.\fP builtins, the trace information is
+shown as \fIfilename\fP\fB:\fP\fI0\fP, since the entire file is the definition\&.
+.RS
+.PP
+Most users will be interested in the information in the
+\fBfuncfiletrace\fP array instead\&.
+.RE
+.TP
 \fBfuncstack\fP
-This array contains the names of the functions currently being
+This array contains the names of the functions, sourced files,
+and (if \fBEVAL_LINENO\fP is set) \fBeval\fP commands\&. currently being
 executed\&. The first element is the name of the function using the
 parameter\&.
 .TP
 \fBfunctrace\fP
 This array contains the names and line numbers of the callers
 corresponding to the functions currently being executed\&.
-The format of each element is name:lineno\&.
+The format of each element is \fIname\fP\fB:\fP\fIlineno\fP\&.
+Callers are also shown for sourced files; the caller is the point
+where the \fBsource\fP or \fB\&.\fP command was executed\&.
 .SH "THE ZSH/PCRE MODULE"
 .\" Yodl file: Zsh/mod_pcre.yo
 
@@ -2912,16 +2992,16 @@ the number of the function in order, which is used in
 other parts of the list in suffixes of the form
 `\fB[\fP\fInum\fP\fB]\fP\&'.RE, then the number of calls made to the function\&.
 The next three columns list the time in
-milliseconds spent in the function and its descendents, the average
-time in milliseconds spent in the function and its descendents per
+milliseconds spent in the function and its descendants, the average
+time in milliseconds spent in the function and its descendants per
 call and the percentage of time spent in all shell functions used in
-this function and its descendents\&.  The following three columns give
+this function and its descendants\&.  The following three columns give
 the same information, but counting only the time spent in the function 
 itself\&.  The final column shows the name of the function\&.
 .PP
 After the summary, detailed information about every function that was
 invoked is listed, sorted in decreasing order of the amount of time spent
-in each function and its descendents\&.  Each of these entries consists of
+in each function and its descendants\&.  Each of these entries consists of
 descriptions for the functions that called the function described, the
 function itself, and the functions that were called from it\&.  The
 description for the function itself has the same format as in the summary
@@ -2933,10 +3013,10 @@ the section from the surrounding lines\&.
 The information shown in this case is almost the same as in the summary,
 but only refers to the call hierarchy being displayed\&.  For example, for a
 calling function the column showing the total running time lists the time
-spent in the described function and its descendents only for the times when
+spent in the described function and its descendants only for the times when
 it was called from that particular calling function\&.  Likewise, for a
 called function, this columns lists the total time spent in the called
-function and its descendents only for the times when it was called from the
+function and its descendants only for the times when it was called from the
 function described\&.
 .PP
 Also in this case, the column showing the number of calls to a function

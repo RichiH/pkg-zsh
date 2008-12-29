@@ -85,7 +85,8 @@ zlong lastval,		/* $?           */
      lastpid,		/* $!           */
      columns,		/* $COLUMNS     */
      lines,		/* $LINES       */
-     ppid;		/* $PPID        */
+     ppid,		/* $PPID        */
+     zsh_subshell;	/* $ZSH_SUBSHELL */
 /**/
 zlong lineno,		/* $LINENO      */
      zoptind,		/* $OPTIND      */
@@ -291,6 +292,7 @@ IPDEF4("?", &lastval),
 IPDEF4("HISTCMD", &curhist),
 IPDEF4("LINENO", &lineno),
 IPDEF4("PPID", &ppid),
+IPDEF4("ZSH_SUBSHELL", &zsh_subshell),
 
 #define IPDEF5(A,B,F) {{NULL,A,PM_INTEGER|PM_SPECIAL},BR((void *)B),GSU(varinteger_gsu),10,0,NULL,NULL,NULL,0}
 IPDEF5("COLUMNS", &columns, zlevar_gsu),
@@ -1127,7 +1129,11 @@ getarg(char **str, int *inv, Value v, int a2, zlong *w,
 		v->isarr &= ~SCANPM_WANTVALS;
 	    } else if (rev)
 		v->isarr |= SCANPM_WANTVALS;
-	    if (!down && !keymatch && ishash)
+	    /*
+	     * This catches the case where we are using "k" (rather
+	     * than "K") on a hash.
+	     */
+	    if (!down && keymatch && ishash)
 		v->isarr &= ~SCANPM_MATCHMANY;
 	}
 	*inv = ind;
@@ -1300,10 +1306,14 @@ getarg(char **str, int *inv, Value v, int a2, zlong *w,
 		scanstr = s;
 		if (keymatch)
 		    v->isarr |= SCANPM_KEYMATCH;
-		else if (ind)
-		    v->isarr |= SCANPM_MATCHKEY;
-		else
-		    v->isarr |= SCANPM_MATCHVAL;
+		else {
+		    if (!pprog)
+			return 1;
+		    if (ind)
+			v->isarr |= SCANPM_MATCHKEY;
+		    else
+			v->isarr |= SCANPM_MATCHVAL;
+		}
 		if (down)
 		    v->isarr |= SCANPM_MATCHMANY;
 		if ((ta = getvaluearr(v)) &&
@@ -1800,11 +1810,10 @@ fetchvalue(Value v, char **pptr, int bracks, int flags)
 	    /* Overload v->isarr as the flag bits for hashed arrays. */
 	    v->isarr = flags | (isvarat ? SCANPM_ISVAR_AT : 0);
 	    /* If no flags were passed, we need something to represent *
-	     * `true' yet differ from an explicit WANTVALS.  This is a *
-	     * bit of a hack, but makes some sense:  When no subscript *
-	     * is provided, all values are substituted.                */
+	     * `true' yet differ from an explicit WANTVALS.  Use a     *
+	     * special flag for this case.                             */
 	    if (!v->isarr)
-		v->isarr = SCANPM_MATCHMANY;
+		v->isarr = SCANPM_ARRONLY;
 	}
 	v->pm = pm;
 	v->flags = 0;
@@ -2178,7 +2187,8 @@ setstrvalue(Value v, char *val)
 	zsfree(val);
 	return;
     }
-    if ((v->pm->node.flags & PM_HASHED) && (v->isarr & SCANPM_MATCHMANY)) {
+    if ((v->pm->node.flags & PM_HASHED) &&
+	(v->isarr & (SCANPM_MATCHMANY|SCANPM_ARRONLY))) {
 	zerr("%s: attempt to set slice of associative array", v->pm->node.nam);
 	zsfree(val);
 	return;
@@ -2229,10 +2239,10 @@ setstrvalue(Value v, char *val)
     case PM_INTEGER:
 	if (val) {
 	    v->pm->gsu.i->setfn(v->pm, mathevali(val));
-	    zsfree(val);
 	    if ((v->pm->node.flags & (PM_LEFT | PM_RIGHT_B | PM_RIGHT_Z)) &&
 		!v->pm->width)
 		v->pm->width = strlen(val);
+	    zsfree(val);
 	}
 	if (!v->pm->base && lastbase != -1)
 	    v->pm->base = lastbase;
@@ -2243,10 +2253,10 @@ setstrvalue(Value v, char *val)
 	    mnumber mn = matheval(val);
 	    v->pm->gsu.f->setfn(v->pm, (mn.type & MN_FLOAT) ? mn.u.d :
 			       (double)mn.u.l);
-	    zsfree(val);
 	    if ((v->pm->node.flags & (PM_LEFT | PM_RIGHT_B | PM_RIGHT_Z)) &&
 		!v->pm->width)
 		v->pm->width = strlen(val);
+	    zsfree(val);
 	}
 	break;
     case PM_ARRAY:

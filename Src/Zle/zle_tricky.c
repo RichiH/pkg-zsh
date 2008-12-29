@@ -685,7 +685,7 @@ docomplete(int lst)
 	}
 	ocs = zlemetacs;
 	zlemetacs = 0;
-	foredel(chl);
+	foredel(chl, CUT_RAW);
 	zlemetacs = ocs;
     }
     freeheap();
@@ -796,7 +796,7 @@ docomplete(int lst)
 		if (inull(*q))
 		    *q = Nularg;
 	    zlemetacs = wb;
-	    foredel(we - wb);
+	    foredel(we - wb, CUT_RAW);
 
 	    untokenize(x = ox = dupstring(w));
 	    if (*w == Tilde || *w == Equals || *w == String)
@@ -848,7 +848,7 @@ docomplete(int lst)
                      * parts of the code re-install them, but for expansion
                      * we have to do it here. */
                     zlemetacs = 0;
-                    foredel(zlemetall);
+                    foredel(zlemetall, CUT_RAW);
                     spaceinline(origll);
                     memcpy(zlemetaline, origline, origll);
                     zlemetacs = origcs;
@@ -980,6 +980,11 @@ unmetafy_line(void)
 
     free(zlemetaline);
     zlemetaline = NULL;
+    /*
+     * If we inserted combining characters under the cursor we
+     * won't have tested the effect yet.  So fix it up now.
+     */
+    CCRIGHT();
 }
 
 /* Free a brinfo list. */
@@ -1230,7 +1235,7 @@ get_comp_string(void)
 	    /* This is done when the lexer reached the word the cursor is on. */
 	    tt = tokstr ? dupstring(tokstr) : NULL;
 
-            if (isset(RCQUOTES)) {
+            if (isset(RCQUOTES) && tt) {
 		char *tt1, *e = tt + zlemetacs - wb;
 		for (tt1 = tt; *tt1; tt1++) {
 		    if (*tt1 == Snull) {
@@ -1669,7 +1674,7 @@ get_comp_string(void)
 			if (i < ocs)
 			    offs -= skipchars;
 			/* Move the tail of the line up */
-			foredel(skipchars);
+			foredel(skipchars, CUT_RAW);
 			/*
 			 * Update the offset into the command line to the
 			 * cursor position if that's after the current position.
@@ -1724,7 +1729,7 @@ get_comp_string(void)
 		} else {
 		    ocs = zlemetacs;
 		    zlemetacs = i;
-		    foredel(skipchars);
+		    foredel(skipchars, CUT_RAW);
 		    if ((zlemetacs = ocs) > (i -= skipchars))
 			zlemetacs -= skipchars;
 		    we -= skipchars;
@@ -1732,7 +1737,7 @@ get_comp_string(void)
 	    } else {
 		ocs = zlemetacs;
 		zlemetacs = we;
-		backdel(skipchars);
+		backdel(skipchars, CUT_RAW);
 		if (ocs == we)
 		    zlemetacs = we - skipchars;
 		else
@@ -2085,7 +2090,7 @@ doexpansion(char *s, int lst, int olst, int explincmd)
 	/* Only the list of expansions was requested. Restore the 
          * command line. */
         zlemetacs = 0;
-        foredel(zlemetall);
+        foredel(zlemetall, CUT_RAW);
         spaceinline(origll);
         memcpy(zlemetaline, origline, origll);
         zlemetacs = origcs;
@@ -2095,7 +2100,7 @@ doexpansion(char *s, int lst, int olst, int explincmd)
     }
     /* Remove the current word and put the expansions there. */
     zlemetacs = wb;
-    foredel(we - wb);
+    foredel(we - wb, CUT_RAW);
     while ((ss = (char *)ugetnode(vl))) {
 	ret = 0;
 	ss = quotename(ss, NULL);
@@ -2267,7 +2272,10 @@ printfmt(char *fmt, int n, int dopr, int doesc)
     for (; *p; ) {
 	/* Handle the `%' stuff (%% == %, %n == <number of matches>). */
 	if (doesc && *p == '%') {
-	    if (*++p) {
+	    int arg = 0, is_fg;
+	    if (idigit(*++p))
+		arg = zstrtol(p, &p, 10);
+	    if (*p) {
 		m = 0;
 		switch (*p) {
 		case '%':
@@ -2311,11 +2319,33 @@ printfmt(char *fmt, int n, int dopr, int doesc)
 		    if (dopr)
 			tcout(TCUNDERLINEEND);
 		    break;
+		case 'F':
+		case 'K':
+		    is_fg = (*p == 'F');
+		    if (p[1] == '{') {
+			p += 2;
+			arg = match_colour((const char **)&p, is_fg, 0);
+			if (*p != '}')
+			    p--;
+		    } else
+			arg = match_colour(NULL, is_fg, arg);
+		    if (arg >= 0)
+			set_colour_attribute(arg, is_fg ? COL_SEQ_FG :
+					     COL_SEQ_BG, 0);
+		    break;
+		case 'f':
+		    set_colour_attribute(TXTNOFGCOLOUR, COL_SEQ_FG, 0);
+		    break;
+		case 'k':
+		    set_colour_attribute(TXTNOBGCOLOUR, COL_SEQ_BG, 0);
+		    break;
 		case '{':
+		    if (arg)
+			cc += arg;
 		    for (p++; *p && (*p != '%' || p[1] != '}'); p++) {
 			if (*p == Meta) {
 			    p++;
-			    if (dopr) 
+			    if (dopr)
 				putc(*p ^ 32, shout);
 			}
 			else if (dopr)
@@ -2370,7 +2400,7 @@ printfmt(char *fmt, int n, int dopr, int doesc)
 		    }
 		} else
 		    p += clen;
-		cc += WCWIDTH(cchar);
+		cc += WCWIDTH_WINT(cchar);
 		if (dopr && !(cc % columns))
 			fputs(" \010", shout);
 	    }
@@ -2804,14 +2834,20 @@ expandcmdpath(UNUSED(char **args))
     noaliases = 1;
     s = getcurcmd();
     noaliases = na;
-    if (!s || cmdwb < 0 || cmdwe < cmdwb)
+    if (!s)
 	return 1;
+
+    if (cmdwb < 0 || cmdwe < cmdwb) {
+	zsfree(s);
+	return 1;
+    }
+
     str = findcmd(s, 1);
     zsfree(s);
     if (!str)
 	return 1;
     zlecs = cmdwb;
-    foredel(cmdwe - cmdwb);
+    foredel(cmdwe - cmdwb, CUT_RAW);
     zlestr = stringaszleline(str, 0, &strll, NULL, NULL);
     spaceinline(strll);
     ZS_strncpy(zleline + zlecs, zlestr, strll);

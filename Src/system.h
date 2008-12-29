@@ -37,7 +37,7 @@
 #endif
 #endif
 
-#ifdef __linux
+#if defined(__linux) || defined(__GLIBC__)
 /*
  * Turn on numerous extensions.
  * This is in order to get the functions for manipulating /dev/ptmx.
@@ -52,9 +52,20 @@
 # undef HAVE_SYS_UTSNAME_H
 #endif
 
-#if defined(ZSH_CURSES_SOURCE) && defined(ZSH_CURSES_NEEDS_XOPEN)
-#define _XOPEN_SOURCE_EXTENDED 1
-#endif
+#ifndef ZSH_NO_XOPEN
+# ifdef ZSH_CURSES_SOURCE
+#  define _XOPEN_SOURCE_EXTENDED 1
+# else
+#  ifdef MULTIBYTE_SUPPORT
+/*
+ * Needed for wcwidth() which is part of XSI.
+ * Various other uses of the interface mean we can't get away with just
+ * _XOPEN_SOURCE.
+ */
+#   define _XOPEN_SOURCE_EXTENDED 1
+#  endif /* MULTIBYTE_SUPPORT */
+# endif /* ZSH_CURSES_SOURCE */
+#endif /* ZSH_NO_XOPEN */
 
 /*
  * Solaris by default zeroes all elements of the tm structure in

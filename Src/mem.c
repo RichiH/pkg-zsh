@@ -153,9 +153,9 @@ old_heaps(Heap old)
 	n = h->next;
 	DPUTS(h->sp, "BUG: old_heaps() with pushed heaps");
 #ifdef USE_MMAP
-	munmap((void *) h, sizeof(*h));
+	munmap((void *) h, h->size);
 #else
-	zfree(h, sizeof(*h));
+	zfree(h, HEAPSIZE);
 #endif
     }
     heaps = old;
@@ -958,7 +958,7 @@ malloc(MALLOC_ARG_T size)
 	n = (size + M_HSIZE + M_ALLOC + m_pgsz - 1) & ~(m_pgsz - 1);
 
 	if (((char *)(m = (struct m_hdr *)sbrk(n))) == ((char *)-1)) {
-	    DPUTS(1, "MEM: allocation error at sbrk.");
+	    DPUTS1(1, "MEM: allocation error at sbrk, size %L.", n);
 	    unqueue_signals();
 	    return NULL;
 	}

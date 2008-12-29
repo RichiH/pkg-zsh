@@ -108,12 +108,6 @@ static int mtab_been_reallocated;
  * as mtab and mmtabp.
  */
 static Cmgroup *mgtab, *mgtabp;
-/*
- * Contains information about the colours to be used for entries.
- * Sometimes mcolors is passed as an argument even though it's
- * available to all the functions.
- */
-static struct listcols mcolors;
 #ifdef DEBUG
 /*
  * Allow us to keep track of pointer arithmetic for mgtab; could
@@ -177,30 +171,38 @@ static Keymap mskeymap, lskeymap;
 #define COL_SO  5
 #define COL_BD  6
 #define COL_CD  7
-#define COL_EX  8
+#define COL_OR  8
 #define COL_MI  9
-#define COL_LC 10
-#define COL_RC 11
-#define COL_EC 12
-#define COL_TC 13
-#define COL_SP 14
-#define COL_MA 15
-#define COL_HI 16
-#define COL_DU 17
+#define COL_SU 10
+#define COL_SG 11
+#define COL_TW 12
+#define COL_OW 13
+#define COL_ST 14
+#define COL_EX 15
+#define COL_LC 16
+#define COL_RC 17
+#define COL_EC 18
+#define COL_TC 19
+#define COL_SP 20
+#define COL_MA 21
+#define COL_HI 22
+#define COL_DU 23
 
-#define NUM_COLS 18
+#define NUM_COLS 24
 
 /* Names of the terminal strings. */
 
 static char *colnames[] = {
-    "no", "fi", "di", "ln", "pi", "so", "bd", "cd", "ex", "mi",
+    "no", "fi", "di", "ln", "pi", "so", "bd", "cd", "or", "mi",
+    "su", "sg", "tw", "ow", "st", "ex",
     "lc", "rc", "ec", "tc", "sp", "ma", "hi", "du", NULL
 };
 
 /* Default values. */
 
 static char *defcols[] = {
-    "0", "0", "1;31", "1;36", "33", "1;35", "1;33", "1;33", "1;32", NULL,
+    "0", "0", "1;31", "1;36", "33", "1;35", "1;33", "1;33", NULL, NULL,
+    "37;41", "30;43", "30;42", "34;42", "37;44", "1;32", 
     "\033[", "m", NULL, "0", "0", "7", NULL, NULL
 };
 
@@ -240,11 +242,25 @@ struct extcol {
 
 typedef struct listcols *Listcols;
 
+/* values for listcol flags */
+enum {
+    /* ln=target:  follow symlinks to determine highlighting */
+    LC_FOLLOW_SYMLINKS = 0x0001
+};
+
 struct listcols {
     Filecol files[NUM_COLS];	/* strings for file types */
     Patcol pats;		/* strings for patterns */
     Extcol exts;		/* strings for extensions */
+    int flags;			/* special settings, see above */
 };
+
+/*
+ * Contains information about the colours to be used for entries.
+ * Sometimes mcolors is passed as an argument even though it's
+ * available to all the functions.
+ */
+static struct listcols mcolors;
 
 /* Combined length of LC and RC, maximum length of capability strings. */
 
@@ -420,24 +436,33 @@ getcoldef(char *s)
 	for (i = 0, nn = colnames; *nn; i++, nn++)
 	    if (!strcmp(n, *nn))
 		break;
-	p = getcolval(s, 0);
-	if (*nn) {
-	    Filecol fc, fo;
+	/*
+	 * special case:  highlighting link targets
+	 */
+	if (i == COL_LN && strpfx("target", s) &&
+	    (s[6] == ':' || !s[6])) {
+	    mcolors.flags |= LC_FOLLOW_SYMLINKS;
+	    p = s + 6;
+	} else {
+	    p = getcolval(s, 0);
+	    if (*nn) {
+		Filecol fc, fo;
 
-	    fc = (Filecol) zhalloc(sizeof(*fc));
-	    fc->prog = (i == COL_EC || i == COL_LC || i == COL_RC ?
-			NULL : gprog);
-	    fc->col = s;
-	    fc->next = NULL;
-	    if ((fo = mcolors.files[i])) {
-		while (fo->next)
-		    fo = fo->next;
-		fo->next = fc;
-	    } else
-		mcolors.files[i] = fc;
+		fc = (Filecol) zhalloc(sizeof(*fc));
+		fc->prog = (i == COL_EC || i == COL_LC || i == COL_RC ?
+			    NULL : gprog);
+		fc->col = s;
+		fc->next = NULL;
+		if ((fo = mcolors.files[i])) {
+		    while (fo->next)
+			fo = fo->next;
+		    fo->next = fc;
+		} else
+		    mcolors.files[i] = fc;
+	    }
+	    if (*p)
+		*p++ = '\0';
 	}
-	if (*p)
-	    *p++ = '\0';
 	return p;
     }
 }
@@ -466,6 +491,7 @@ getcols()
     int i, l;
 
     max_caplen = lr_caplen = 0;
+    mcolors.flags = 0;
     queue_signals();
     if (!(s = getsparam("ZLS_COLORS")) &&
 	!(s = getsparam("ZLS_COLOURS"))) {
@@ -507,7 +533,10 @@ getcols()
     lr_caplen = strlen(mcolors.files[COL_LC]->col) +
 	strlen(mcolors.files[COL_RC]->col);
 
-    /* Default for missing files. */
+    /* Default for orphan is same as link. */
+    if (!mcolors.files[COL_OR] || !mcolors.files[COL_OR]->col)
+	mcolors.files[COL_OR] = mcolors.files[COL_LN];
+    /* Default for missing files:  currently not used */
     if (!mcolors.files[COL_MI] || !mcolors.files[COL_MI]->col)
 	mcolors.files[COL_MI] = mcolors.files[COL_FI];
 
@@ -843,19 +872,11 @@ putmatchcol(char *group, char *n)
  * file modes. */
 
 static int
-putfilecol(char *group, char *n, mode_t m)
+putfilecol(char *group, char *n, mode_t m, int special)
 {
-    int colour;
+    int colour = -1;
     Extcol ec;
     Patcol pc;
-
-    for (ec = mcolors.exts; ec; ec = ec->next)
-	if (strsfx(ec->ext, n) &&
-	    (!ec->prog || !group || pattry(ec->prog, group))) {
-	    zlrputs(ec->col);
-
-	    return 0;
-	}
 
     nrefs = MAX_POS - 1;
 
@@ -872,9 +893,19 @@ putfilecol(char *group, char *n, mode_t m)
 	    return 0;
 	}
 
-    if (S_ISDIR(m))
-	colour = COL_DI;
-    else if (S_ISLNK(m))
+    if (special != -1) {
+	colour = special;
+    } else if (S_ISDIR(m)) {
+	if (m & S_IWOTH)
+	    if (m & S_ISVTX)
+		colour = COL_TW;
+	    else
+		colour = COL_OW;
+	else if (m & S_ISVTX)
+	    colour = COL_ST;
+	else
+	    colour = COL_DI;
+    } else if (S_ISLNK(m))
 	colour = COL_LN;
     else if (S_ISFIFO(m))
 	colour = COL_PI;
@@ -884,12 +915,27 @@ putfilecol(char *group, char *n, mode_t m)
 	colour = COL_BD;
     else if (S_ISCHR(m))
 	colour = COL_CD;
+    else if (m & S_ISUID)
+	colour = COL_SU;
+    else if (m & S_ISGID)
+	colour = COL_SG;
     else if (S_ISREG(m) && (m & S_IXUGO))
 	colour = COL_EX;
-    else
-	colour = COL_FI;
 
-    zcputs(group, colour);
+    if (colour != -1) {
+	zcputs(group, colour);
+	return 0;
+    }
+
+    for (ec = mcolors.exts; ec; ec = ec->next)
+	if (strsfx(ec->ext, n) &&
+	    (!ec->prog || !group || pattry(ec->prog, group))) {
+	    zlrputs(ec->col);
+
+	    return 0;
+	}
+
+    zcputs(group, COL_FI);
 
     return 0;
 }
@@ -995,17 +1041,22 @@ compprintfmt(char *fmt, int n, int dopr, int doesc, int ml, int *stop)
 	}
 	else
 #endif
-	    width = WCWIDTH(cchar);
+	    width = WCWIDTH_WINT(cchar);
 
 	if (doesc && cchar == ZWC('%')) {
 	    p += len;
 	    if (*p) {
+		int arg = 0, is_fg;
+
 		len = MB_METACHARLENCONV(p, &cchar);
 #ifdef MULTIBYTE_SUPPORT
 		if (cchar == WEOF)
 		    cchar = (wchar_t)(*p == Meta ? p[1] ^ 32 : *p);
 #endif
 		p += len;
+
+		if (idigit(*p))
+		    arg = zstrtol(p, &p, 10);
 
 		m = 0;
 		switch (cchar) {
@@ -1053,7 +1104,32 @@ compprintfmt(char *fmt, int n, int dopr, int doesc, int ml, int *stop)
 		    if (dopr)
 			tcout(TCUNDERLINEEND);
 		    break;
+		case ZWC('F'):
+		case ZWC('K'):
+		    is_fg = (cchar == ZWC('F'));
+		    /* colours must be ASCII */
+		    if (*p == '{') {
+			p++;
+			arg = match_colour((const char **)&p, is_fg, 0);
+			if (*p == '}')
+			    p++;
+		    } else
+			arg = match_colour(NULL, is_fg, arg);
+		    if (arg >= 0 && dopr)
+			set_colour_attribute(arg, is_fg ? COL_SEQ_FG :
+					     COL_SEQ_BG, 0);
+		    break;
+		case ZWC('f'):
+		    if (dopr)
+			set_colour_attribute(TXTNOFGCOLOUR, COL_SEQ_FG, 0);
+		    break;
+		case ZWC('k'):
+		    if (dopr)
+			set_colour_attribute(TXTNOBGCOLOUR, COL_SEQ_BG, 0);
+		    break;
 		case ZWC('{'):
+		    if (arg)
+			cc += arg;
 		    for (; *p && (*p != '%' || p[1] != '}'); p++)
 			if (dopr)
 			    putc(*p == Meta ? *++p ^ 32 : *p, shout);
@@ -1663,7 +1739,7 @@ clprintm(Cmgroup g, Cmatch *mp, int mc, int ml, int lastc, int width)
 	}
 	zcoff();
     } else {
-	int mx;
+	int mx, modec;
 
 	if (g->widths) {
 	    int i;
@@ -1711,8 +1787,20 @@ clprintm(Cmgroup g, Cmatch *mp, int mc, int ml, int lastc, int width)
 	    zcputs(g->name, COL_HI);
 	else if (mselect >= 0 && (m->flags & (CMF_MULT | CMF_FMULT)))
 	    zcputs(g->name, COL_DU);
-	else if (m->mode)
-	    subcols = putfilecol(g->name, m->str, m->mode);
+	else if (m->mode) {
+	    /*
+	     * Symlink is orphaned if we read the mode with lstat
+	     * but couldn't read one with stat.  That's the
+	     * only way they can be different so the following
+	     * test should be enough.
+	     */
+	    int orphan_colour = (m->mode && !m->fmode) ? COL_OR : -1;
+	    if (mcolors.flags & LC_FOLLOW_SYMLINKS) {
+		subcols = putfilecol(g->name, m->str, m->fmode, orphan_colour);
+	    } else {
+		subcols = putfilecol(g->name, m->str, m->mode, orphan_colour);
+	    }
+	}
 	else
 	    subcols = putmatchcol(g->name, (m->disp ? m->disp : m->str));
 
@@ -1725,12 +1813,13 @@ clprintm(Cmgroup g, Cmatch *mp, int mc, int ml, int lastc, int width)
 	len = ZMB_nicewidth(m->disp ? m->disp : m->str);
 	mlprinted = len ? (len-1) / columns : 0;
 
-	if ((g->flags & CGF_FILES) && m->modec) {
+	modec = (mcolors.flags & LC_FOLLOW_SYMLINKS) ? m->fmodec : m->modec;
+	if ((g->flags & CGF_FILES) && modec) {
 	    if (m->gnum != mselect) {
 		zcoff();
 		zcputs(g->name, COL_TC);
 	    }
-	    putc(m->modec, shout);
+	    putc(modec, shout);
 	    len++;
         }
 	if ((len = width - len - 2) > 0) {
@@ -1834,6 +1923,7 @@ static int
 complistmatches(UNUSED(Hookdef dummy), Chdata dat)
 {
     static int onlnct = -1;
+    static int extendedglob;
 
     Cmgroup oamatches = amatches;
 
@@ -1856,6 +1946,8 @@ complistmatches(UNUSED(Hookdef dummy), Chdata dat)
      * useful outside.
      */
     pushheap();
+    extendedglob = opts[EXTENDEDGLOB];
+    opts[EXTENDEDGLOB] = 1;
 
     getcols();
 
@@ -1869,6 +1961,7 @@ complistmatches(UNUSED(Hookdef dummy), Chdata dat)
 	noselect = 1;
 	amatches = oamatches;
 	popheap();
+	opts[EXTENDEDGLOB] = extendedglob;
 	return 1;
     }
     if (inselect || mlbeg >= 0)
@@ -1901,6 +1994,7 @@ complistmatches(UNUSED(Hookdef dummy), Chdata dat)
 	if (asklist()) {
 	    amatches = oamatches;
 	    popheap();
+	    opts[EXTENDEDGLOB] = extendedglob;
 	    return (noselect = 1);
 	}
     }
@@ -1945,6 +2039,7 @@ complistmatches(UNUSED(Hookdef dummy), Chdata dat)
     amatches = oamatches;
 
     popheap();
+    opts[EXTENDEDGLOB] = extendedglob;
 
     return noselect;
 }
@@ -2052,7 +2147,7 @@ setmstatus(char *status, char *sline, int sll, int scs,
             s[lastend - zlemetacs] = '\0';
         }
         zlemetacs = 0;
-        foredel(zlemetall);
+        foredel(zlemetall, CUT_RAW);
         spaceinline(sll);
         memcpy(zlemetaline, sline, sll);
         zlemetacs = scs;
@@ -2298,7 +2393,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 	     */
             mode = MM_INTER;
             zlemetacs = 0;
-            foredel(zlemetall);
+            foredel(zlemetall, CUT_RAW);
             spaceinline(l);
             strncpy(zlemetaline, origline, l);
             zlemetacs = origcs;
@@ -2410,7 +2505,7 @@ domenuselect(Hookdef dummy, Chdata dat)
         }
         first = 0;
         if (mode == MM_INTER)
-	    statusline = stringaszleline(status, 0, &statusll, NULL, NULL);
+	    statusline = status;
         else if (mode) {
             int l = sprintf(status, "%s%sisearch%s: ",
                             ((msearchstate & MS_FAILED) ? "failed " : ""),
@@ -2419,17 +2514,12 @@ domenuselect(Hookdef dummy, Chdata dat)
 
             strncat(status, msearchstr, MAX_STATUS - l - 1);
 
-            statusline = stringaszleline(status, 0, &statusll, NULL, NULL);
+            statusline = status;
         } else {
             statusline = NULL;
-            statusll = 0;
         }
         zrefresh();
-	if (statusline) {
-	    free(statusline);
-	    statusline = NULL;
-	    statusll = 0;
-	}
+	statusline = NULL;
         inselect = 1;
         if (noselect) {
             broken = 1;
@@ -2501,7 +2591,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 		 */
                 mode = MM_INTER;
                 zlemetacs = 0;
-                foredel(zlemetall);
+                foredel(zlemetall, CUT_RAW);
                 spaceinline(l);
                 strncpy(zlemetaline, origline, l);
                 zlemetacs = origcs;
@@ -2539,6 +2629,15 @@ domenuselect(Hookdef dummy, Chdata dat)
 	    s->origcs = origcs;
 	    s->origll = origll;
             s->status = dupstring(status);
+	    /*
+	     * with just the slightest hint of a note of infuriation:
+	     * mode here is the menu mode, not the file mode, despite
+	     * the fact we're in a file dealing with file highlighting;
+	     * but that's OK, because s is a menu stack entry, despite
+	     * the fact we're in a function declaring s as char *.
+	     * anyway, in functions we really mean *mode* it's
+	     * called m, to be clear.
+	     */
             s->mode = mode;
 	    menucmp = menuacc = hasoldlist = 0;
 	    minfo.cur = NULL;
@@ -2560,7 +2659,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 		 * characters typed by the user.
 		 */
                 zlemetacs = 0;
-                foredel(zlemetall);
+                foredel(zlemetall, CUT_RAW);
                 spaceinline(l);
                 strncpy(zlemetaline, origline, l);
                 zlemetacs = origcs;
@@ -2600,12 +2699,10 @@ domenuselect(Hookdef dummy, Chdata dat)
 	    if (nmatches < 1 || !minfo.cur || !*(minfo.cur)) {
 		nolist = 1;
                 if (mode == MM_INTER) {
-                    statusline = stringaszleline(status, 0,
-						 &statusll, NULL, NULL);
+                    statusline = status;
                 } else {
 		    /* paranoia */
 		    statusline = NULL;
-		    statusll = 0;
 		}
 		if (nmessages) {
 		    showinglist = -2;
@@ -2623,11 +2720,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 		    zrefresh();
 		    showinglist = clearlist = 0;
 		}
-		if (statusline) {
-		    free(statusline);
-		    statusline = NULL;
-		    statusll = 0;
-		}
+		statusline = NULL;
 
 		goto getk;
 	    }
@@ -2663,6 +2756,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 	    s->origcs = origcs;
 	    s->origll = origll;
             s->status = dupstring(status);
+	    /* see above */
             s->mode = mode;
 	    accept_last();
 	    handleundo();
@@ -2701,7 +2795,7 @@ domenuselect(Hookdef dummy, Chdata dat)
 
 	    handleundo();
 	    zlemetacs = 0;
-	    foredel(zlemetall);
+	    foredel(zlemetall, CUT_RAW);
 	    spaceinline(l = strlen(u->line));
 	    strncpy(zlemetaline, u->line, l);
 	    zlemetacs = u->cs;
@@ -2741,19 +2835,13 @@ domenuselect(Hookdef dummy, Chdata dat)
 
             if (nolist) {
                 if (mode == MM_INTER) {
-                    statusline = stringaszleline(status, 0,
-						 &statusll, NULL, NULL);
+                    statusline = status;
                 } else {
 		    /* paranoia */
 		    statusline = NULL;
-		    statusll = 0;
 		}
                 zrefresh();
-		if (statusline) {
-		    free(statusline);
-		    statusline = NULL;
-		    statusll = 0;
-		}
+		statusline = NULL;
                 goto getk;
             }
             if (mode)
@@ -3090,7 +3178,7 @@ domenuselect(Hookdef dummy, Chdata dat)
                 origcs = modecs;
                 origll = modell;
                 zlemetacs = 0;
-                foredel(zlemetall);
+                foredel(zlemetall, CUT_RAW);
                 spaceinline(origll);
                 strncpy(zlemetaline, origline, origll);
                 zlemetacs = origcs;

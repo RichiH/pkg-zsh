@@ -91,10 +91,11 @@ taken for a parameter name.
 
 cindex(arithmetic operators)
 cindex(operators, arithmetic)
-An arithmetic expression uses nearly the same syntax, precedence, and
-associativity of expressions in C.
-The following operators are supported (listed in decreasing order
-of precedence):
+An arithmetic expression uses nearly the same syntax and
+associativity of expressions as in C.
+
+In the native mode of operation, the following operators are supported
+(listed in decreasing order of precedence):
 
 startsitem()
 sitem(tt(PLUS() - ! ~ PLUS()PLUS() --))(unary plus/minus, logical NOT, complement, {pre,post}{in,de}crement)
@@ -118,6 +119,34 @@ The operators `tt(&&)', `tt(||)', `tt(&&=)', and `tt(||=)' are
 short-circuiting, and only one of the latter two expressions in a ternary
 operator is evaluated.  Note the precedence of the bitwise AND, OR,
 and XOR operators.
+
+With the option tt(C_PRECEDENCES) the precedences (but no other
+properties) of the operators are altered to be the same as those in
+most other languages that support the relevant operators:
+
+startsitem()
+sitem(tt(PLUS() - ! ~ PLUS()PLUS() --))(unary plus/minus, logical NOT, complement, {pre,post}{in,de}crement)
+sitem(tt(**))(exponentiation)
+sitem(tt(* / %))(multiplication, division, modulus (remainder))
+sitem(tt(PLUS() -))(addition, subtraction)
+sitem(tt(<< >>))(bitwise shift left, right)
+sitem(tt(< > <= >=))(comparison)
+sitem(tt(== !=))(equality and inequality)
+sitem(tt(&))(bitwise AND)
+sitem(tt(^))(bitwise XOR)
+sitem(tt(|))(bitwise OR)
+sitem(tt(&&))(logical AND)
+sitem(tt(^^))(logical XOR)
+sitem(tt(||))(logical OR)
+sitem(tt(? :))(ternary operator)
+sitem(tt(= PLUS()= -= *= /= %= &= ^= |= <<= >>= &&= ||= ^^= **=))(assignment)
+sitem(tt(,))(comma operator)
+endsitem()
+
+Note the precedence of exponentiation in both cases is below
+that of unary operators, hence `tt(-3**2)' evaluates as `tt(9)', not
+tt(-9).  Use parentheses where necessary: `tt(-(3**2))'.  This is
+for compatibility with other shells.
 
 cindex(mathematical functions, use of)
 cindex(functions, math, use of)

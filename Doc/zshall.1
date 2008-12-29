@@ -1,4 +1,4 @@
-.TH "ZSHALL" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHALL" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .SH "NAME"
 zshall \- the Z shell meta\-man page
 .\" Yodl file: Zsh/intro.yo
@@ -442,7 +442,8 @@ files\&.
 Commands are first read from \fB/etc/zsh/zshenv\fP; this cannot be overridden\&.
 Subsequent behaviour is modified by the \fBRCS\fP and
 \fBGLOBAL_RCS\fP options; the former affects all startup files, while the
-second only affects those in the \fB/etc\fP directory\&.  If one of the options
+second only affects global startup files (those shown here with an
+path starting with a \fB/\fP)\&.  If one of the options
 is unset at any point, any subsequent startup file(s)
 of the corresponding
 type will not be read\&.  It is also possible for a file in \fB$ZDOTDIR\fP to
@@ -468,7 +469,7 @@ i\&.e\&. if \fBRCS\fP is unset when the shell exits, no history file will be
 saved\&.
 .PP
 If \fBZDOTDIR\fP is unset, \fBHOME\fP is used instead\&.
-Those files listed above as being in \fB/etc\fP may be in another
+Files listed above as being in \fB/etc\fP may be in another
 directory, depending on the installation\&.
 .PP
 As \fB/etc/zsh/zshenv\fP is run for all instances of zsh, it is important that
@@ -496,7 +497,7 @@ file will be used instead\&.
 .so man1/zshtcpsys.1
 .so man1/zshzftpsys.1
 .so man1/zshcontrib.1
-.TH "ZSHALL" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHALL" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .\" Yodl file: Zsh/filelist.yo
 .SH "FILES"
 .PD 0

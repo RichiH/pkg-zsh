@@ -96,11 +96,13 @@ static struct optname optns[] = {
 {{NULL, "caseglob",	      OPT_ALL},			 CASEGLOB},
 {{NULL, "casematch",	      OPT_ALL},			 CASEMATCH},
 {{NULL, "cbases",	      0},			 CBASES},
+{{NULL, "cprecedences",	      OPT_EMULATE|OPT_NONZSH},	 CPRECEDENCES},
 {{NULL, "cdablevars",	      OPT_EMULATE},		 CDABLEVARS},
 {{NULL, "chasedots",	      OPT_EMULATE},		 CHASEDOTS},
 {{NULL, "chaselinks",	      OPT_EMULATE},		 CHASELINKS},
 {{NULL, "checkjobs",	      OPT_EMULATE|OPT_ZSH},	 CHECKJOBS},
 {{NULL, "clobber",	      OPT_EMULATE|OPT_ALL},	 CLOBBER},
+{{NULL, "combiningchars",     0},			 COMBININGCHARS},
 {{NULL, "completealiases",    0},			 COMPLETEALIASES},
 {{NULL, "completeinword",     0},			 COMPLETEINWORD},
 {{NULL, "correct",	      0},			 CORRECT},
@@ -110,7 +112,7 @@ static struct optname optns[] = {
 {{NULL, "cshjunkiequotes",    OPT_EMULATE|OPT_CSH},	 CSHJUNKIEQUOTES},
 {{NULL, "cshnullcmd",	      OPT_EMULATE|OPT_CSH},	 CSHNULLCMD},
 {{NULL, "cshnullglob",	      OPT_EMULATE|OPT_CSH},	 CSHNULLGLOB},
-{{NULL, "debugbeforecmd",     OPT_EMULATE},		 DEBUGBEFORECMD},
+{{NULL, "debugbeforecmd",     OPT_ALL},			 DEBUGBEFORECMD},
 {{NULL, "emacs",	      0},			 EMACSMODE},
 {{NULL, "equals",	      OPT_EMULATE|OPT_ZSH},	 EQUALS},
 {{NULL, "errexit",	      OPT_EMULATE},		 ERREXIT},
@@ -134,6 +136,7 @@ static struct optname optns[] = {
 {{NULL, "histallowclobber",   0},			 HISTALLOWCLOBBER},
 {{NULL, "histbeep",	      OPT_ALL},			 HISTBEEP},
 {{NULL, "histexpiredupsfirst",0},			 HISTEXPIREDUPSFIRST},
+{{NULL, "histfcntllock",      0},			 HISTFCNTLLOCK},
 {{NULL, "histfindnodups",     0},			 HISTFINDNODUPS},
 {{NULL, "histignorealldups",  0},			 HISTIGNOREALLDUPS},
 {{NULL, "histignoredups",     0},			 HISTIGNOREDUPS},
@@ -178,6 +181,7 @@ static struct optname optns[] = {
 			      0
 #endif
 			      },			 MULTIBYTE},
+{{NULL, "multifuncdef",	      OPT_EMULATE|OPT_ZSH},	 MULTIFUNCDEF},
 {{NULL, "multios",	      OPT_EMULATE|OPT_ZSH},	 MULTIOS},
 {{NULL, "nomatch",	      OPT_EMULATE|OPT_NONBOURNE},NOMATCH},
 {{NULL, "notify",	      OPT_ZSH},			 NOTIFY},
@@ -195,7 +199,7 @@ static struct optname optns[] = {
 {{NULL, "promptcr",	      OPT_ALL},			 PROMPTCR},
 {{NULL, "promptpercent",      OPT_NONBOURNE},		 PROMPTPERCENT},
 {{NULL, "promptsp",	      OPT_ALL},			 PROMPTSP},
-{{NULL, "promptsubst",	      OPT_KSH},			 PROMPTSUBST},
+{{NULL, "promptsubst",	      OPT_BOURNE},		 PROMPTSUBST},
 {{NULL, "pushdignoredups",    OPT_EMULATE},		 PUSHDIGNOREDUPS},
 {{NULL, "pushdminus",	      OPT_EMULATE},		 PUSHDMINUS},
 {{NULL, "pushdsilent",	      0},			 PUSHDSILENT},
@@ -721,7 +725,7 @@ dosetopt(int optno, int value, int force)
 	    return -1;
 #endif /* GETPWNAM_FAKED */
     } else if ((optno == EMACSMODE || optno == VIMODE) && value) {
-	(*zlesetkeymapptr)(optno);
+	zleentry(ZLE_CMD_SET_KEYMAP, optno);
 	opts[(optno == EMACSMODE) ? VIMODE : EMACSMODE] = 0;
     }
     opts[optno] = value;

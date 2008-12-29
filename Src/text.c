@@ -118,7 +118,7 @@ taddnl(void)
 
 /**/
 mod_export char *
-getpermtext(Eprog prog, Wordcode c)
+getpermtext(Eprog prog, Wordcode c, int start_indent)
 {
     struct estate s;
 
@@ -131,11 +131,11 @@ getpermtext(Eprog prog, Wordcode c)
     s.pc = c;
     s.strs = prog->strs;
 
+    tindent = start_indent;
     tnewlins = 1;
     tbuf = (char *)zalloc(tsiz = 32);
     tptr = tbuf;
     tlim = tbuf + tsiz;
-    tindent = 1;
     tjob = 0;
     if (prog->len)
 	gettext2(&s);
@@ -163,11 +163,11 @@ getjobtext(Eprog prog, Wordcode c)
     s.pc = c;
     s.strs = prog->strs;
 
+    tindent = 0;
     tnewlins = 0;
     tbuf = NULL;
     tptr = jbuf;
     tlim = tptr + JOBTEXTSIZE - 1;
-    tindent = 1;
     tjob = 1;
     gettext2(&s);
     *tptr = '\0';

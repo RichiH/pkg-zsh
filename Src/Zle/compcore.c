@@ -349,7 +349,7 @@ do_completion(UNUSED(Hookdef dummy), Compldat dat)
     if (makecomplist(s, incmd, lst)) {
 	/* Error condition: feeeeeeeeeeeeep(). */
 	zlemetacs = 0;
-	foredel(zlemetall);
+	foredel(zlemetall, CUT_RAW);
 	inststr(origline);
 	zlemetacs = origcs;
 	clearlist = 1;
@@ -381,7 +381,7 @@ do_completion(UNUSED(Hookdef dummy), Compldat dat)
     } else if (!useline && uselist) {
 	/* All this and the guy only wants to see the list, sigh. */
 	zlemetacs = 0;
-	foredel(zlemetall);
+	foredel(zlemetall, CUT_RAW);
 	inststr(origline);
 	zlemetacs = origcs;
 	showinglist = -2;
@@ -429,7 +429,7 @@ do_completion(UNUSED(Hookdef dummy), Compldat dat)
 	if (forcelist)
 	    clearlist = 1;
 	zlemetacs = 0;
-	foredel(zlemetall);
+	foredel(zlemetall, CUT_RAW);
 	inststr(origline);
 	zlemetacs = origcs;
     }
@@ -519,7 +519,7 @@ after_complete(UNUSED(Hookdef dummy), int *dat)
 	    if (ret >= 2) {
 		fixsuffix();
 		zlemetacs = 0;
-		foredel(zlemetall);
+		foredel(zlemetall, CUT_RAW);
 		inststr(origline);
 		zlemetacs = origcs;
 		if (ret == 2) {
@@ -540,13 +540,13 @@ static int parwb, parwe, paroffs;
 static void
 callcompfunc(char *s, char *fn)
 {
-    Eprog prog;
+    Shfunc shfunc;
     int lv = lastval;
     char buf[20];
 
     METACHECK();
 
-    if ((prog = getshfunc(fn)) != &dummy_eprog) {
+    if ((shfunc = getshfunc(fn))) {
 	char **p, *tmp;
 	int aadd = 0, usea = 1, icf = incompfunc, osc = sfcontext;
 	unsigned int rset, kset;
@@ -814,7 +814,7 @@ callcompfunc(char *s, char *fn)
 		while (*p)
 		    addlinknode(largs, dupstring(*p++));
 	    }
-	    doshfunc(fn, prog, largs, 0, 0);
+	    doshfunc(shfunc, largs, 0);
 	    cfret = lastval;
 	    lastval = olv;
 	} OLDHEAPS;
@@ -2277,6 +2277,45 @@ addmatches(Cadata dat, char **argv)
 			haspattern = 1;
 		}
 	    }
+	} else {
+	    /*
+	     * (This is called a "comment".  Given you've been
+	     * spending your time reading the completion code, you
+	     * may have forgotten what one is.  It's used to deconfuse
+	     * the poor so-and-so who's landed up having to maintain
+	     * the code.)
+	     *
+	     * So what's going on here then?  I'm glad you asked.  To test
+	     * whether we should start menu completion, we test whether
+	     * compstate[insert] has been set to "menu", but only if we found
+	     * patterns in the code.  It's not clear to me from the
+	     * documentation why the second condition would apply, but sure
+	     * enough if I remove it the test suite falls over.  (Testing
+	     * comppatmatch at the later point doesn't work because compstate
+	     * is likely to have been reset by the point we actually insert
+	     * the completions, after all functions have exited; this is at
+	     * least part of the problem.)  In the present case, we are not
+	     * doing matching on the code because all the clever stuff has
+	     * been done over our heads and we've simply between told to
+	     * insert it.  However, we still need to take account of ambiguous
+	     * completions properly.  To do this, we rely on the caller to
+	     * pass down the same prefix/suffix with the patterns that we
+	     * would get if we were doing matching, and test those for
+	     * patterns.  This gets us out of the hole apparently without
+	     * breaking anything.  The particular case where this is needed is
+	     * approximate file completion: this does its own matching but
+	     * _approximate still sets the prefix to include the pattern.
+	     */
+	    if (comppatmatch && *comppatmatch) {
+		int pflen = strlen(compprefix);
+		char *tmp = zhalloc(pflen + strlen(compsuffix) + 1);
+		strcpy(tmp, compprefix);
+		strcpy(tmp + pflen, compsuffix);
+		tokenize(tmp);
+		remnulargs(tmp);
+		if (haswilds(tmp))
+		    haspattern = 1;
+	    }
 	}
 	if (*argv) {
 	    if (dat->pre)
@@ -2784,8 +2823,8 @@ add_match_data(int alt, char *str, char *orig, Cline line,
 		 (complist ?
 		  ((strstr(complist, "packed") ? CMF_PACKED : 0) |
 		   (strstr(complist, "rows")   ? CMF_ROWS   : 0)) : 0));
-    cm->mode = 0;
-    cm->modec = '\0';
+    cm->mode = cm->fmode = 0;
+    cm->modec = cm->fmodec = '\0';
     if ((flags & CMF_FILE) && orig[0] && orig[strlen(orig) - 1] != '/') {
         struct stat buf;
 	char *pb;
@@ -2798,6 +2837,11 @@ add_match_data(int alt, char *str, char *orig, Cline line,
             cm->mode = buf.st_mode;
             if ((cm->modec = file_type(buf.st_mode)) == ' ')
                 cm->modec = '\0';
+        }
+        if (!ztat(pb, &buf, 0)) {
+            cm->fmode = buf.st_mode;
+            if ((cm->fmodec = file_type(buf.st_mode)) == ' ')
+                cm->fmodec = '\0';
         }
     }
     if ((*compqstack == QT_BACKSLASH && compqstack[1]) ||
@@ -3208,6 +3252,8 @@ dupmatch(Cmatch m, int nbeg, int nend)
     r->disp = ztrdup(m->disp);
     r->mode = m->mode;
     r->modec = m->modec;
+    r->fmode = m->fmode;
+    r->fmodec = m->fmodec;
 
     return r;
 }

@@ -4,6 +4,67 @@ CHANGES FROM PREVIOUS VERSIONS OF ZSH
 
 Note also the list of incompatibilities in the README file.
 
+Major changes between versions 4.3.6 and 4.3.9
+----------------------------------------------
+
+The option COMBINING_CHARS has been added.  When it is set, the
+line editor assumes the terminal is capable of displaying zero-width
+combining characters (typically accents) correctly as modifications
+to the base character, and will act accordingly.  Note it is not set
+by default owing to vagaries of terminals.  The system is reported
+to work on MacOS, where this is particularly important as accented
+characters in file names are stored in their decomposed form (i.e.
+with base and combining characters).
+
+The option HIST_FCNTL_LOCK has been added to provide locking of history
+files using the system call fcntl().  On recent NFS implementations this
+may provide better reliability.
+
+The syntax ~[...] provides a dynamic form of directory naming,
+supplementing the existing static ~name syntax.  A user-defined shell
+function, zsh_directory_name, is used to handle both expansion of names to
+directories and contraction of directories to names.
+
+Patterns can now be used in incremental searches with the new widgets
+history-incremental-pattern-search-backward and
+history-incremental-pattern-search-forward.  These are not bound to
+keys by default.
+
+Highlighting and colouring of sections of the command line is now
+supported, controlled by the array parameter zle_highlight and the ZLE
+special parameter region_highlight.
+
+Colouring of prompts is now supported within the shell by prompt
+escapes.  The prompt theme system has been updated.
+
+Various changes have been added to make debugging of shell code easier:
+  - As noted in README, the option DEBUG_BEFORE_CMD is now set by default.
+  - In DEBUG traps, $ZSH_DEBUG_CMD gives the code for which the trap is
+    called as a string.
+  - "setopt ERR_EXIT" in a DEBUG trap causes the code not to be executed.
+  - $ZSH_SUBSHELL indicates the subshell level at which code is being
+    executed.
+  - The zsh/parameter module has various additional arrays similar to
+    the existing $funcstack and $functrace, namely $funcsourcetrace
+    and $funcfiletrace.  The consistency and informativeness of
+    the output of all these arrays has been improved.
+  - Prompt escapes %x and %I show the source file and line number in
+    debug prompts (compare %N and %i which show names and line numbers
+    in the execution environment).
+  - The option NO_MULTI_FUNCDEF can turn off multiple definition of
+    functions at once, a rarely used feature that can cause problems
+    with misplaced "()".
+  - The "fc" builtin has been enhanced to make non-interactive use possible
+    and output consistent when the history is manipulated with "print -s".
+
+The completion style accept-exact-dirs has been added.  When true, this
+suppresses attempts to complete non-final directory segments of a filename
+path when the directory exists.  (For example, /home/pws/src/zsh/<TAB>
+discovers that /home/pws/src/zsh exists and leaves the directory component
+alone, while /h/p/s/z/<TAB> completes to /home/pws/src/zsh/... as before.)
+This should improve completion behaviour noticeably in special cases, such
+as remote paths under Cygwin.
+
 Major changes between versions 4.3.5 and 4.3.6
 ----------------------------------------------
 
@@ -145,7 +206,7 @@ Changes in 4.2 since version 4.2.0
 
 - A new zle widget reset-prompt has been added to re-expand the current
   prompt.  Changes to the variable in use as well as changes in its
-  expanions are both taken into account.  The same effect is now forced by
+  expansions are both taken into account.  The same effect is now forced by
   a job change notification, making the %j prompt escape and %(j..) ternary
   expression more useful.
 

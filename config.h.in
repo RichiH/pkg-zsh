@@ -47,6 +47,9 @@
 /* Define to 1 if tcsetpgrp() doesn't work, ie BeOS R4.51. */
 #undef BROKEN_TCSETPGRP
 
+/* Define to 1 if the wcwidth() function is present but broken. */
+#undef BROKEN_WCWIDTH
+
 /* Define to 1 if you use BSD style signal handling (and can block signals).
    */
 #undef BSD_SIGNALS
@@ -67,6 +70,9 @@
 
 /* The default path; used when running commands with command -p */
 #undef DEFAULT_PATH
+
+/* Define default pager used by readnullcmd */
+#undef DEFAULT_READNULLCMD
 
 /* Define to 1 if you want to avoid calling functions that will require
    dynamic NSS modules. */
@@ -199,6 +205,12 @@
 /* Define to 1 if you have the `ftruncate' function. */
 #undef HAVE_FTRUNCATE
 
+/* Define to 1 if you have the <gdbm.h> header file. */
+#undef HAVE_GDBM_H
+
+/* Define to 1 if you have the `gdbm_open' function. */
+#undef HAVE_GDBM_OPEN
+
 /* Define to 1 if you have the `getcchar' function. */
 #undef HAVE_GETCCHAR
 
@@ -297,6 +309,9 @@
 
 /* Define to 1 if you have the `dl' library (-ldl). */
 #undef HAVE_LIBDL
+
+/* Define to 1 if you have the `gdbm' library (-lgdbm). */
+#undef HAVE_LIBGDBM
 
 /* Define to 1 if you have the `m' library (-lm). */
 #undef HAVE_LIBM
@@ -1034,9 +1049,6 @@
 /* Define to an unsigned variant of ZSH_64_BIT_TYPE if that is defined. */
 #undef ZSH_64_BIT_UTYPE
 
-/* Define if the curses libraries need _XOPEN_SOURCE_EXTENDED defined */
-#undef ZSH_CURSES_NEEDS_XOPEN
-
 /* Define to 1 if you want to get debugging information on internal hash
    tables. This turns on the `hashinfo' builtin. */
 #undef ZSH_HASH_DEBUG
@@ -1056,11 +1068,20 @@
 /* Define to 1 if you want to turn on warnings of memory allocation errors */
 #undef ZSH_MEM_WARNING
 
+/* Define if _XOPEN_SOURCE_EXTENDED should not be defined to avoid clashes */
+#undef ZSH_NO_XOPEN
+
 /* Define to 1 if you want to turn on memory checking for free(). */
 #undef ZSH_SECURE_FREE
 
 /* Define to the base type of the third argument of accept */
 #undef ZSOCKLEN_T
+
+/* Number of bits in a file offset, on hosts where this is settable. */
+#undef _FILE_OFFSET_BITS
+
+/* Define for large files, on AIX-style hosts. */
+#undef _LARGE_FILES
 
 /* Define to empty if `const' does not conform to ANSI C. */
 #undef const

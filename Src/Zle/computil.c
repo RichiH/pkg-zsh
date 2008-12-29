@@ -1549,6 +1549,8 @@ parse_cadef(char *nam, char **args)
 	    if (*p != ':') {
 		freecadef(all);
 		zwarnnam(nam, "invalid argument: %s", *args);
+		if (xor)
+		    free(xor);
 		return NULL;
 	    }
 	    if (*++p == ':') {
@@ -1872,13 +1874,10 @@ ca_parse_line(Cadef d, int multi, int first)
 
     if (first && ca_alloced) {
 	Castate s = &ca_laststate, ss;
-	int f = 1;
 
 	while (s) {
 	    ss = s->snext;
 	    freecastate(s);
-	    if (!f)
-		zfree(s, sizeof(*s));
 	    s = ss;
 	}
     }
@@ -2906,13 +2905,6 @@ parse_cvdef(char *nam, char **args)
 	    zwarnnam(nam, "invalid value definition: %s", *args);
 	    return NULL;
 	}
-	if (!multi) {
-	    if (!xor) {
-		xor = (char **) zalloc(2 * sizeof(char *));
-		xor[1] = NULL;
-	    }
-	    xor[xnum] = ztrdup(name);
-	}
 	/* Get argument? */
 
 	if (c == ':') {
@@ -2930,6 +2922,13 @@ parse_cvdef(char *nam, char **args)
 	} else {
 	    vtype = CVV_NOARG;
 	    arg = NULL;
+	}
+	if (!multi) {
+	    if (!xor) {
+		xor = (char **) zalloc(2 * sizeof(char *));
+		xor[1] = NULL;
+	    }
+	    xor[xnum] = ztrdup(name);
 	}
 	*valp = val = (Cvval) zalloc(sizeof(*val));
 	valp = &((*valp)->next);
@@ -3997,6 +3996,238 @@ cfp_test_exact(LinkList names, char **accept, char *skipped)
     return (found ? ret : NULL);
 }
 
+
+/*
+ * This code constructs (from heap) and returns a string that
+ * corresponds to a series of matches; when compiled as a pattern, at
+ * each position it matches either the character from the string "add"
+ * or the corresponding single-character match from the set of matchers.
+ * To take a simple case, if add is "a" and the single matcher for the
+ * character position matches "[0-9]", the pattern returned is "[0-9a]".
+ * We take account of equivalences between the word and line, too.
+ *
+ * As there are virtually no comments in this file, I don't really
+ * know why we're doing this, but it's to do with a matcher which
+ * is passed as an argument to the utility compfiles -p/-P.
+ */
+static char *
+cfp_matcher_range(Cmatcher *ms, char *add)
+{
+    Cmatcher *mp, m;
+    int len = 0, mt;
+    char *ret = NULL, *p = NULL, *adds = add;
+
+    /*
+     * Do this twice:  once to work out the length of the
+     * string in len, the second time to build it in ret.
+     * This is probably worthwhile because otherwise memory
+     * management is difficult.
+     */
+    for (;;) {
+	MB_METACHARINIT();
+	for (mp = ms; *add; ) {
+	    convchar_t addc;
+	    int addlen;
+
+	    addlen = MB_METACHARLENCONV(add, &addc);
+#ifdef MULTIBYTE_SUPPORT
+	    if (addc == WEOF)
+		addc = (wchar_t)(*p == Meta ? p[1] ^ 32 : *p);
+#endif
+
+	    if (!(m = *mp)) {
+		/*
+		 * No matcher, so just match the character
+		 * itself.
+		 *
+		 * TODO: surely this needs quoting if it's a
+		 * metacharacter?
+		 */
+		if (ret) {
+		    memcpy(p, add, addlen);
+		    p += addlen;
+		} else
+		    len += addlen;
+	    } else if (m->flags & CMF_RIGHT) {
+		/*
+		 * Right-anchored:  match anything followed
+		 * by the character itself.
+		 */
+		if (ret) {
+		    *p++ = '*';
+		    /* TODO: quote again? */
+		    memcpy(p, add, addlen);
+		    p += addlen;
+		} else
+		    len += addlen + 1;
+	    } else {
+		/* The usual set of matcher possibilities. */
+		int ind;
+		if (m->line->tp == CPAT_EQUIV &&
+		    m->word->tp == CPAT_EQUIV) {
+		    /*
+		     * Genuine equivalence.  Add the character to match
+		     * and the equivalent character from the word
+		     * pattern.
+		     *
+		     * TODO: we could be more careful here with special
+		     * cases as we are in the basic character class
+		     * code below.
+		     */
+		    if (ret) {
+			*p++ = '[';
+			memcpy(p, add, addlen);
+			p += addlen;
+		    } else
+			len += addlen + 1;
+		    if (PATMATCHRANGE(m->line->u.str, addc, &ind, &mt)) {
+			/*
+			 * Find the equivalent match for ind in the
+			 * word pattern.
+			 */
+			if ((ind = pattern_match_equivalence
+			     (m->word, ind, mt, addc)) != -1) {
+			    if (ret) {
+				if (imeta(ind)) {
+				    *p++ = Meta;
+				    *p++ = ind ^ 32;
+				} else
+				    *p++ = ind;
+			    } else
+				len += imeta(ind) ? 2 : 1;
+			}
+		    }
+		    if (ret)
+			*p++ = ']';
+		    else
+			len++;
+		} else {
+		    int newlen, addadd;
+
+		    switch (m->word->tp) {
+		    case CPAT_NCLASS:
+			/*
+			 * TODO: the old logic implies that we need to
+			 * match *add, i.e. it should be deleted from
+			 * the set of character's we're not allowed to
+			 * match.  That's too much like hard work for
+			 * now.  Indeed, in general it's impossible
+			 * without trickery.  Consider *add == 'A',
+			 * range == "[^[:upper:]]": we would have to
+			 * resort to something like "(A|[^[:upper:]])";
+			 * and in an expression like that *add may or
+			 * may not need backslashing.  So we're deep
+			 * into see-if-we-can-get-away-without
+			 * territory.
+			 */
+			if (ret) {
+			    *p++ = '[';
+			    *p++ = '^';
+			} else
+			    len += 2;
+			/*
+			 * Convert the compiled range string back
+			 * to an ordinary string.
+			 */
+			newlen =
+			    pattern_range_to_string(m->word->u.str, p);
+			DPUTS(!newlen, "empty character range");
+			if (ret) {
+			    p += newlen;
+			    *p++ = ']';
+			} else
+			    len += newlen + 1;
+			break;
+			    
+		    case CPAT_CCLASS:
+			/*
+			 * If there is an equivalence only on one
+			 * side it's not equivalent to anything.
+			 * Treat it as an ordinary character class.
+			 */ 
+		    case CPAT_EQUIV:
+		    case CPAT_CHAR:
+			if (ret)
+			    *p++ = '[';
+			else
+			    len++;
+			/*
+			 * We needed to add *add specially only if
+			 * it is not covered by the range.  This
+			 * is necessary for correct syntax---consider
+			 * if *add is ] and ] is also the first
+			 * character in the range.
+			 */
+			addadd = !pattern_match1(m->word, addc, &mt);
+			if (addadd && *add == ']') {
+			    if (ret)
+				*p++ = *add;
+			    else
+				len++;
+			}
+			if (m->word->tp == CPAT_CHAR) {
+			    /*
+			     * The matcher just matches a single
+			     * character, but we need to be able
+			     * to match *add, too, hence we do
+			     * this as a [...].
+			     */
+			    if (ret) {
+				if (imeta(m->word->u.chr)) {
+				    *p++ = Meta;
+				    *p++ = m->word->u.chr ^ 32;
+				} else
+				    *p++ = m->word->u.chr;
+			    } else
+				len += imeta(m->word->u.chr) ? 2 : 1;
+			} else {
+			    /*
+			     * Convert the compiled range string back
+			     * to an ordinary string.
+			     */
+			    newlen =
+				pattern_range_to_string(m->word->u.str, p);
+			    DPUTS(!newlen, "empty character range");
+			    if (ret)
+				p += newlen;
+			    else
+				len += newlen;
+			}
+			if (addadd && *add != ']') {
+			    if (ret) {
+				memcpy(p, add, addlen);
+				p += addlen;
+			    } else
+				len += addlen;
+			}
+			if (ret)
+			    *p++ = ']';
+			else
+			    len++;
+			break;
+
+		    case CPAT_ANY:
+			if (ret)
+			    *p++ = '?';
+			else
+			    len++;
+			break;
+		    }
+		}
+	    }
+	    add += addlen;
+	    mp++;
+	}
+	if (ret) {
+	    *p = '\0';
+	    return ret;
+	}
+	p = ret = zhalloc(len + 1);
+	add = adds;
+    }
+}
+
+
 static char *
 cfp_matcher_pats(char *matcher, char *add)
 {
@@ -4004,19 +4235,19 @@ cfp_matcher_pats(char *matcher, char *add)
 
     if (m && m != pcm_err) {
 	char *tmp;
-	int al = strlen(add), tl;
-	VARARR(Cmatcher, ms, al);
+	int al = strlen(add), zl = ztrlen(add), tl, cl;
+	VARARR(Cmatcher, ms, zl);
 	Cmatcher *mp;
 	Cpattern stopp;
 	int stopl = 0;
 
-	memset(ms, 0, al * sizeof(Cmatcher));
+	memset(ms, 0, zl * sizeof(Cmatcher));
 
 	for (; m && *add; m = m->next) {
 	    stopp = NULL;
 	    if (!(m->flags & (CMF_LEFT|CMF_RIGHT))) {
 		if (m->llen == 1 && m->wlen == 1) {
-		    for (tmp = add, tl = al, mp = ms; tl; tl--, tmp++, mp++) {
+		    for (tmp = add, tl = al, mp = ms; tl; ) {
 			if (pattern_match(m->line, tmp, NULL, NULL)) {
 			    if (*mp) {
 				*tmp = '\0';
@@ -4025,6 +4256,10 @@ cfp_matcher_pats(char *matcher, char *add)
 			    } else
 				*mp = m;
 			}
+			cl = (*tmp == Meta) ? 2 : 1;
+			tl -= cl;
+			tmp += cl;
+			mp += cl;
 		    }
 		} else {
 		    stopp = m->line;
@@ -4032,7 +4267,7 @@ cfp_matcher_pats(char *matcher, char *add)
 		}
 	    } else if (m->flags & CMF_RIGHT) {
 		if (m->wlen < 0 && !m->llen && m->ralen == 1) {
-		    for (tmp = add, tl = al, mp = ms; tl; tl--, tmp++, mp++) {
+		    for (tmp = add, tl = al, mp = ms; tl; ) {
 			if (pattern_match(m->right, tmp, NULL, NULL)) {
 			    if (*mp || (tmp == add && *tmp == '.')) {
 				*tmp = '\0';
@@ -4041,6 +4276,10 @@ cfp_matcher_pats(char *matcher, char *add)
 			    } else
 				*mp = m;
 			}
+			cl = (*tmp == Meta) ? 2 : 1;
+			tl -= cl;
+			tmp += cl;
+			mp += cl;
 		    }
 		} else if (m->llen) {
 		    stopp = m->line;
@@ -4057,71 +4296,19 @@ cfp_matcher_pats(char *matcher, char *add)
 		stopl = m->lalen;
 	    }
 	    if (stopp)
-		for (tmp = add, tl = al; tl >= stopl; tl--, tmp++)
+		for (tmp = add, tl = al; tl >= stopl; ) {
 		    if (pattern_match(stopp, tmp, NULL, NULL)) {
 			*tmp = '\0';
 			al = tmp - add;
 			break;
 		    }
-	}
-	if (*add) {
-	    char *ret = "", buf[259];
-
-	    for (mp = ms; *add; add++, mp++) {
-		if (!(m = *mp)) {
-		    buf[0] = *add;
-		    buf[1] = '\0';
-		} else if (m->flags & CMF_RIGHT) {
-		    buf[0] = '*';
-		    buf[1] = *add;
-		    buf[2] = '\0';
-		} else {
-		    unsigned char *t, c;
-		    char *p = buf;
-		    int i;
-
-		    for (i = 256, t = m->word->tab; i--; t++)
-			if (*t)
-			    break;
-		    if (i) {
-			t = m->word->tab;
-			*p++ = '[';
-			if (m->line->equiv && m->word->equiv) {
-			    *p++ = *add;
-			    c = m->line->tab[STOUC(*add)];
-			    for (i = 0; i < 256; i++)
-				if (m->word->tab[i] == c) {
-				    *p++ = (char) i;
-				    break;
-				}
-			} else {
-			    if (*add == ']' || t[STOUC(']')])
-				*p++ = ']';
-			    for (i = 0; i < 256; i++, t++)
-				if (*t && ((char) i) != *add &&
-				    i != ']' && i != '-' &&
-				    i != '^' && i != '!')
-				    *p++ = (char) i;
-			    *p++ = *add;
-			    t = m->word->tab;
-			    if (*add != '^' && t[STOUC('^')])
-				*p++ = '^';
-			    if (*add != '!' && t[STOUC('!')])
-				*p++ = '!';
-			    if (*add != '-' && t[STOUC('-')])
-				*p++ = '-';
-			}
-			*p++ = ']';
-			*p = '\0';
-		    } else {
-			*p = '?';
-			p[1] = '\0';
-		    }
+		    cl = (*tmp == Meta) ? 2 : 1;
+		    tl -= cl;
+		    tmp += cl;
 		}
-		ret = dyncat(ret, buf);
-	    }
-	    return ret;
 	}
+	if (*add)
+	    return cfp_matcher_range(ms, add);
     }
     return add;
 }
@@ -4175,12 +4362,12 @@ cfp_opt_pats(char **pats, char *matcher)
 		    for (s = add; *s && !idigit(*s); s++);
 		    *s = '\0';
 		} else if (*q == '[') {
-		    int not, first = 1;
+		    int not;
 		    char *x = ++q;
 
 		    if ((not = (*x == '!' || *x == '^')))
 			x++;
-		    for (; *x && (first || *x != ']'); x++) {
+		    for (; *x; x++) {
 			if (x[1] == '-' && x[2]) {
 			    char c1 = *x, c2 = x[2];
 

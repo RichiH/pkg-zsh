@@ -1,4 +1,4 @@
-.TH "ZSHROADMAP" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHROADMAP" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .SH "NAME"
 zshroadmap \- informal introduction to the zsh manual
 .\" Yodl file: Zsh/roadmap.yo
@@ -39,6 +39,13 @@ set appropriate variables, and the number of history lines retained by
 default is quite small (30 lines)\&.  See the description of the shell
 variables (referred to in the documentation as parameters) \fBHISTFILE\fP,
 \fBHISTSIZE\fP and \fBSAVEHIST\fP in \fIzshparam\fP(1)\&.
+.PP
+The shell now supports the UTF\-8 character set (and also others if
+supported by the operating system)\&.  This is (mostly) handled transparently
+by the shell, but the degree of support in terminal emulators is variable\&.
+There is some discussion of this in the shell FAQ,
+http://zsh\&.dotsrc\&.org/FAQ/ \&.  Note in particular that for combining
+characters to be handled the option \fBCOMBINING_CHARS\fP needs to be set\&.
 .PP
 .SS "Completion"
 .PP

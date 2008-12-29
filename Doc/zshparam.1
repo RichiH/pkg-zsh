@@ -1,4 +1,4 @@
-.TH "ZSHPARAM" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHPARAM" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .SH "NAME"
 zshparam \- zsh parameters
 .\" Yodl file: Zsh/params.yo
@@ -222,7 +222,8 @@ The flags currently understood are:
 \fBw\fP
 If the parameter subscripted is a scalar then this flag makes
 subscripting work on words instead of characters\&.  The default word
-separator is whitespace\&.
+separator is whitespace\&.  This flag may not be used with the \fBi\fP or
+\fBI\fP flag\&.
 .TP
 \fBs:\fP\fIstring\fP\fB:\fP
 This gives the \fIstring\fP that separates words (for use with the
@@ -306,9 +307,10 @@ testing for values or keys that do not exist\&.
 \fBk\fP
 If used in a subscript on an associative array, this flag causes the keys
 to be interpreted as patterns, and returns the value for the first key
-found where \fIexp\fP is matched by the key\&.  This flag does not work on
-the left side of an assignment to an associative array element\&.  If used
-on another type of parameter, this behaves like `\fBr\fP\&'\&.
+found where \fIexp\fP is matched by the key\&.  Note this could be any
+such key as no ordering of associative arrays is defined\&.
+This flag does not work on the left side of an assignment to an associative
+array element\&.  If used on another type of parameter, this behaves like `\fBr\fP\&'\&.
 .TP
 \fBK\fP
 On an associative array this is like `\fBk\fP\&' but returns all values where
@@ -386,8 +388,8 @@ The same rule applies to parentheses (`\fB(\fP\&' and `\fB)\fP') and
 braces (`\fB{\fP\&' and `\fB}\fP'): they must appear either in balanced pairs or
 preceded by a backslash, and backslashes that protect parentheses or
 braces are removed during parsing\&.  This is because parameter expansions
-may be surrounded balanced braces, and subscript flags are introduced by
-balanced parenthesis\&.
+may be surrounded by balanced braces, and subscript flags are introduced by
+balanced parentheses\&.
 .PP
 The second difference is that a double\-quote (`\fB"\fP\&') may appear as part
 of a subscript expression without being preceded by a backslash, and
@@ -737,6 +739,12 @@ of zsh\&.
 .TP
 \fBzsh_scheduled_events\fP
 See the section `The zsh/sched Module\&' in \fIzshmodules\fP(1)\&.
+.TP
+\fBZSH_SUBSHELL\fP
+Readonly integer\&.  Initially zero, incremented each time the shell forks
+to create a subshell for executing code\&.  Hence `\fB(print $ZSH_SUBSHELL)\fP\&'
+and `\fBprint $(print $ZSH_SUBSHELL)\fP\&' output 1, while
+`\fB( (print $ZSH_SUBSHELL) )\fP\&' outputs 2\&.
 .TP
 \fBZSH_VERSION\fP
 The version number of this zsh\&.

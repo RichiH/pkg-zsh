@@ -928,6 +928,11 @@ kindex(other-accounts, completion tag)
 item(tt(other-accounts))(
 used to look up the tt(users-hosts) style
 )
+kindex(other-files, completion tag)
+item(tt(other-files))(
+for the names of any non-directory files.  This is used instead
+of tt(all-files) when the tt(list-dirs-first) style is in effect.
+)
 kindex(packages, completion tag)
 item(tt(packages))(
 for packages (e.g. tt(rpm) or installed tt(Debian) packages)
@@ -1098,6 +1103,20 @@ be allowed to complete tt($foo) to tt($foobar). If the style is set to
 `continue', _expand will add the expansion as a match and the completion
 system will also be allowed to continue.
 )
+kindex(accept-exact-dirs, completion style)
+item(tt(accept-exact-dirs))(
+This is used by filename completion.  Unlike tt(accept-exact) it is
+a boolean.  By default, filename completion examines all components
+of a path to see if there are completions of that component, even if
+the component matches an existing directory.  For example, when
+completion after tt(/usr/bin/), the function examines possible
+completions to tt(/usr).
+
+When this style is true, any prefix of a path that matches an existing
+directory is accepted without any attempt to complete it further.
+Hence, in the given example, the path tt(/usr/bin/) is accepted
+immediately and completion tried in that directory.
+)
 kindex(add-space, completion style)
 item(tt(add-space))(
 This style is used by the tt(_expand) completer.  If it is true (the
@@ -1228,7 +1247,7 @@ For these commands a tt(-) is used to introduce a directory stack entry
 and completion of these is far more common than completing options.
 Hence unless the value of this style is true options will not be
 completed, even after an initial tt(-).  If it is true, options will
-be completed after an initial tt(-) unless there is a preceeding
+be completed after an initial tt(-) unless there is a preceding
 tt(-)tt(-) on the command line.
 )
 kindex(completer, completion style)
@@ -1292,6 +1311,14 @@ item(tt(domains))(
 A list of names of network domains for completion.
 If this is not set, domain names will be taken from
 the file tt(/etc/resolv.conf).
+)
+kindex(environ, completion style)
+item(tt(environ))(
+The environ style is used when completing for `tt(sudo)'.  It is set to an
+array of `var(VAR)tt(=)var(value)' assignments to be exported into the
+local environment before the completion for the target command is invoked.
+example(zstyle :complete:sudo: environ \ 
+  PATH="/sbin:/usr/sbin:$PATH" HOME="/root")
 )
 kindex(expand, completion style)
 item(tt(expand))(
@@ -1480,7 +1507,10 @@ modification time; `tt(access)' to sort by the last access time; and
 `tt(inode)' (or `tt(change)') to sort by the last inode change
 time.  If the style is set to any other value, or is unset, files will be
 sorted alphabetically by name.  If the value contains the string
-`tt(reverse)', sorting is done in the opposite order.
+`tt(reverse)', sorting is done in the opposite order.  If the value
+contains the string `tt(follow)', timestamps are associated with the
+targets of symbolic links; the default is to use the timestamps
+of the links themselves.
 )
 kindex(filter, completion style)
 item(tt(filter))(
@@ -1512,9 +1542,15 @@ item(tt(format))(
 If this is set for the tt(descriptions) tag, its value is used as a
 string to display above matches in completion lists.  The sequence
 `tt(%d)' in this string will be replaced with a short description of
-what these matches are.  This string may also contain the sequences to
-specify output attributes, such as `tt(%B)', `tt(%S)' and
-`tt(%{)...tt(%})'.
+what these matches are.  This string may also contain the following
+sequences to specify output attributes,
+ifnzman(noderef(Prompt Expansion))\
+ifzman(as described in the section PROMPT EXPANSION in zmanref(zshmisc)):
+`tt(%B)', `tt(%S)', `tt(%U)', `tt(%F)', `tt(%K)' and their lower case
+counterparts, as well as `tt(%{)...tt(%})'.  `tt(%F)', `tt(%K)' and
+`tt(%{)...tt(%})' take arguments in the same form as prompt
+expansion.  Note that the tt(%G) sequence is not available; an argument
+to `tt(%{)' should be used instead.
 
 The style is tested with each tag valid for the current completion
 before it is tested for the tt(descriptions) tag.  Hence different format 
@@ -1831,6 +1867,14 @@ example(zstyle ':completion:*:default' list-colors ${(s.:.)LS_COLORS})
 The default colors are the same as for the GNU tt(ls) command and can be
 obtained by setting the style to an empty string (i.e. tt('')).
 )
+kindex(list-dirs-first, completion style)
+item(tt(list-dirs-first))(
+This is used by file completion.  If set, directories to be completed
+are listed separately from and before completion for other files,
+regardless of tag ordering.  In addition, the tag tt(other-files)
+is used in place of tt(all-files) for the remaining files, to indicate
+that no directories are presented with that tag.
+)
 kindex(list-grouped, completion style)
 item(tt(list-grouped))(
 If this style is `true' (the default), the completion system will try to
@@ -1870,9 +1914,10 @@ width, padded to the  right with spaces, while the lowercase form will
 be replaced by a variable width string.  As in other prompt strings, the
 escape sequences `tt(%S)', `tt(%s)', `tt(%B)', `tt(%b)', `tt(%U)',
 `tt(%u)' for entering and leaving the display modes
-standout, bold and underline are also available, as is the form
+standout, bold and underline, and `tt(%F)', `tt(%f)', `tt(%K)', `tt(%k)' for
+changing the foreground background colour, are also available, as is the form
 `tt(%{)...tt(%})' for enclosing escape sequences which display with zero
-width.
+(or, with a numeric argument, some other) width.
 
 After deleting this prompt the variable tt(LISTPROMPT) should be unset for
 the the removal to take effect.
@@ -1935,16 +1980,16 @@ item(tt(matcher))(
 This style is tested separately for each tag valid in the current
 context.  Its value is added to any match specifications given by the 
 tt(matcher-list) style.  It should be in the form described in
-ifzman(the section `Matching Control' in zmanref(zshcompwid))\
-ifnzman(noderef(Matching Control))\
+ifzman(the section `Completion Matching Control' in zmanref(zshcompwid))\
+ifnzman(noderef(Completion Matching Control))\
 .
 )
 kindex(matcher-list, completion style)
 item(tt(matcher-list))(
 This style can be set to a list of match specifications that are to
 be applied everywhere. Match specifications are described in
-ifzman(the section `Matching Control' in zmanref(zshcompwid))\
-ifnzman(noderef(Matching Control))\
+ifzman(the section `Completion Matching Control' in zmanref(zshcompwid))\
+ifnzman(noderef(Completion Matching Control))\
 .
 The completion system will try them one after another for each completer
 selected.  For example, to try first simple completion and, if that
@@ -2096,8 +2141,8 @@ Finally, it is possible to activate two special modes of menu selection.
 The word `tt(interactive)' in the value causes interactive mode
 to be entered immediately when menu selection is started; see
 ifzman(the description of the tt(zsh/complist) module in zmanref(zshmodules))\
-ifnzman(noderef(The zsh/complist Module))\
-) for a description of interactive mode.  Including the string
+ifnzman(noderef(The zsh/complist Module))
+for a description of interactive mode.  Including the string
 `tt(search)' does the same for incremental search mode.  To select backward
 incremental search, include the string `tt(search-backward)'.
 )
@@ -3861,6 +3906,7 @@ Example:
 
 example(_example_caching_policy () {
     # rebuild if cache is more than a week old
+    local -a oldp
     oldp=( "$1"(Nmw+1) )
     (( $#oldp ))
 })

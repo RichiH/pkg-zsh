@@ -279,14 +279,14 @@ setfunction(char *name, char *val, int dis)
 
     val = metafy(val, strlen(val), META_REALLOC);
 
-    prog = parse_string(val);
+    prog = parse_string(val, 1);
 
     if (!prog || prog == &dummy_eprog) {
 	zwarn("invalid function definition", value);
 	zsfree(val);
 	return;
     }
-    shf = (Shfunc) zalloc(sizeof(*shf));
+    shf = (Shfunc) zshcalloc(sizeof(*shf));
     shf->funcdef = dupeprog(prog, 0);
     shf->node.flags = dis;
 
@@ -390,7 +390,7 @@ getfunction(UNUSED(HashTable ht), const char *name, int dis)
 				((shf->node.flags & PM_TAGGED) ? "Ut" : "U") :
 				((shf->node.flags & PM_TAGGED) ? "t" : "")));
 	} else {
-	    char *t = getpermtext(shf->funcdef, NULL), *n, *h;
+	    char *t = getpermtext(shf->funcdef, NULL, 1), *n, *h;
 
 	    if (shf->funcdef->flags & EF_RUN) {
 		n = nicedupstring(name);
@@ -455,7 +455,8 @@ scanfunctions(UNUSED(HashTable ht), ScanFunc func, int flags, int dis)
 				    ((shf->node.flags & PM_TAGGED) ? "Ut" : "U") :
 				    ((shf->node.flags & PM_TAGGED) ? "t" : "")));
 		    } else {
-			char *t = getpermtext(((Shfunc) hn)->funcdef, NULL), *n;
+			char *t = getpermtext(((Shfunc) hn)->funcdef, NULL, 1);
+			char *n;
 
 			if (((Shfunc) hn)->funcdef->flags & EF_RUN) {
 			    n = nicedupstring(hn->nam);
@@ -529,7 +530,91 @@ functracegetfn(UNUSED(Param pm))
 	char *colonpair;
 
 	colonpair = zhalloc(strlen(f->caller) + (f->lineno > 9999 ? 24 : 6));
-	sprintf(colonpair, "%s:%d", f->caller, f->lineno);
+	sprintf(colonpair, "%s:%ld", f->caller, (long)f->lineno);
+
+	*p = colonpair;
+    }
+    *p = NULL;
+
+    return ret;
+}
+
+/* Functions for the funcsourcetrace special parameter. */
+
+/**/
+static char **
+funcsourcetracegetfn(UNUSED(Param pm))
+{
+    Funcstack f;
+    int num;
+    char **ret, **p;
+
+    for (f = funcstack, num = 0; f; f = f->prev, num++);
+
+    ret = (char **) zhalloc((num + 1) * sizeof(char *));
+
+    for (f = funcstack, p = ret; f; f = f->prev, p++) {
+	char *colonpair;
+	char *fname = f->filename ? f->filename : "";
+
+	colonpair = zhalloc(strlen(fname) + (f->flineno > 9999 ? 24 : 6));
+	sprintf(colonpair, "%s:%ld", fname, (long)f->flineno);
+
+	*p = colonpair;
+    }
+    *p = NULL;
+
+    return ret;
+}
+
+/* Functions for the funcfiletrace special parameter. */
+
+/**/
+static char **
+funcfiletracegetfn(UNUSED(Param pm))
+{
+    Funcstack f;
+    int num;
+    char **ret, **p;
+
+    for (f = funcstack, num = 0; f; f = f->prev, num++);
+
+    ret = (char **) zhalloc((num + 1) * sizeof(char *));
+
+    for (f = funcstack, p = ret; f; f = f->prev, p++) {
+	char *colonpair, *fname;
+
+	if (!f->prev || f->prev->tp == FS_SOURCE) {
+	    /*
+	     * Calling context is a file---either the parent
+	     * script or interactive shell, or a sourced
+	     * script.  Just print the file information for the caller
+	     * (same as $functrace)
+	     */
+	    colonpair = zhalloc(strlen(f->caller) +
+				(f->lineno > 9999 ? 24 : 6));
+	    sprintf(colonpair, "%s:%ld", f->caller, (long)f->lineno);
+	} else {
+	    /*
+	     * Calling context is a function or eval; we need to find
+	     * the line number in the file where that function was
+	     * defined or the eval was called.  For this we need the
+	     * $funcsourcetrace information for the context above,
+	     * together with the $functrace line number for the current
+	     * context.
+	     */
+	    long flineno = (long)(f->prev->flineno + f->lineno);
+	    /*
+	     * Line numbers in eval start from 1, not zero,
+	     * so offset by one to get line in file.
+	     */
+	    if (f->prev->tp == FS_EVAL)
+		flineno--;
+	    fname = f->prev->filename ? f->prev->filename : "";
+
+	    colonpair = zhalloc(strlen(fname) + (flineno > 9999 ? 24 : 6));
+	    sprintf(colonpair, "%s:%ld", fname, flineno);
+	}
 
 	*p = colonpair;
     }
@@ -1773,6 +1858,10 @@ static const struct gsu_array funcstack_gsu =
 { funcstackgetfn, arrsetfn, stdunsetfn };
 static const struct gsu_array functrace_gsu =
 { functracegetfn, arrsetfn, stdunsetfn };
+static const struct gsu_array funcsourcetrace_gsu =
+{ funcsourcetracegetfn, arrsetfn, stdunsetfn };
+static const struct gsu_array funcfiletrace_gsu =
+{ funcfiletracegetfn, arrsetfn, stdunsetfn };
 static const struct gsu_array reswords_gsu =
 { reswordsgetfn, arrsetfn, stdunsetfn };
 static const struct gsu_array disreswords_gsu =
@@ -1801,6 +1890,10 @@ static struct paramdef partab[] = {
 	    &disreswords_gsu, NULL, NULL),
     SPECIALPMDEF("dis_saliases", 0,
 	    &pmdissaliases_gsu, getpmdissalias, scanpmdissaliases),
+    SPECIALPMDEF("funcfiletrace", PM_ARRAY|PM_READONLY,
+	    &funcfiletrace_gsu, NULL, NULL),
+    SPECIALPMDEF("funcsourcetrace", PM_ARRAY|PM_READONLY,
+	    &funcsourcetrace_gsu, NULL, NULL),
     SPECIALPMDEF("funcstack", PM_ARRAY|PM_READONLY,
 	    &funcstack_gsu, NULL, NULL),
     SPECIALPMDEF("functions", 0, &pmfunctions_gsu, getpmfunction,

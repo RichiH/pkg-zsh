@@ -1,4 +1,4 @@
-.TH "ZSHBUILTINS" "1" "April 2, 2008" "zsh 4\&.3\&.6"
+.TH "ZSHBUILTINS" "1" "October 30, 2008" "zsh 4\&.3\&.9"
 .SH "NAME"
 zshbuiltins \- zsh built\-in commands
 .\" Yodl file: Zsh/builtins.yo
@@ -76,6 +76,9 @@ If the \fB\-L\fP flag is present, then print each
 alias in a manner suitable for putting in a startup script\&.  The exit
 status is nonzero if a \fIname\fP (with no \fIvalue\fP) is given for
 which no alias has been defined\&.
+.PP
+For more on aliases, include common problems,
+see the section ALIASING in \fIzshmisc\fP(1)\&.
 .RE
 .TP
 \fBautoload\fP [ {\fB+\fP|\fB\-\fP}\fBUXktz\fP ] [ \fB\-w\fP ] [ \fIname\fP \&.\&.\&. ]
@@ -408,7 +411,10 @@ disabled with the \fBdisable\fP builtin command\&.
 .TP
 \fBeval\fP [ \fIarg\fP \&.\&.\&. ]
 Read the arguments as input to the shell and execute the resulting
-command in the current shell process\&.
+command(s) in the current shell process\&.  The return status is
+the same as if the commands had been executed directly by the shell;
+if there are no \fIargs\fP or they contain no commands (i\&.e\&. are
+an empty string or whitespace) the return status is zero\&.
 .TP
 \fBexec\fP [ \fB\-cl\fP ] [ \fB\-a\fP \fIargv0\fP ] \fIsimple command\fP
 Replace the current shell with an external command rather than forking\&.
@@ -1379,8 +1385,21 @@ If \fIsig\fP is \fBZERR\fP then \fIarg\fP will be executed
 after each command with a nonzero exit status\&.  \fBERR\fP is an alias
 for \fBZERR\fP on systems that have no \fBSIGERR\fP signal (this is the
 usual case)\&.
+.PP
 If \fIsig\fP is \fBDEBUG\fP then \fIarg\fP will be executed
-after each command\&.
+before each command if the option \fBDEBUG_BEFORE_CMD\fP is set
+(as it is by default), else after each command\&.  Here, a `command\&' is
+what is described as a `sublist\&' in the shell grammar, see
+the section SIMPLE COMMANDS & PIPELINES in \fIzshmisc\fP(1)\&.
+If \fBDEBUG_BEFORE_CMD\fP is set various additional features are available\&.
+First, it is possible to skip the next command by setting the option
+\fBERR_EXIT\fP; see the description of the \fBERR_EXIT\fP option in
+\fIzshoptions\fP(1)\&.  Also, the shell parameter
+\fBZSH_DEBUG_CMD\fP is set to the string corresponding to the command
+to be executed following the trap\&.  Note that this string is reconstructed
+from the internal format and may not be formatted the same way as the
+original text\&.  The parameter is unset after the trap is executed\&.
+.PP
 If \fIsig\fP is \fB0\fP or \fBEXIT\fP
 and the \fBtrap\fP statement is executed inside the body of a function,
 then the command \fIarg\fP is executed after the function completes\&.
@@ -1390,7 +1409,9 @@ If \fIsig\fP is \fB0\fP or \fBEXIT\fP
 and the \fBtrap\fP statement is not executed inside the body of a function,
 then the command \fIarg\fP is executed when the shell terminates\&.
 .PP
-\fBZERR\fP, \fBDEBUG\fP, and \fBEXIT\fP traps are not executed inside other traps\&.
+\fBZERR\fP, \fBDEBUG\fP, and \fBEXIT\fP traps are not executed inside other
+traps\&.  \fBZERR\fP and \fBDEBUG\fP traps are kept within subshells, while
+other traps are reset\&.
 .PP
 Note that traps defined with the \fBtrap\fP builtin are slightly different
 from those defined as `\fBTRAP\fP\fINAL\fP () { \&.\&.\&. }\&', as the latter have
@@ -1632,7 +1653,7 @@ for non\-special parameters\&.
 \fB\-i\fP
 Use an internal integer representation\&.  If \fIn\fP is nonzero it
 defines the output arithmetic base, otherwise it is determined by the
-first assignment\&.
+first assignment\&.  Bases from 2 to 36 inclusive are allowed\&.
 .TP
 \fB\-E\fP
 Use an internal double\-precision floating point representation\&.  On output
@@ -1687,7 +1708,7 @@ unit is printed before each value\&.
 .PP
 When looping over multiple resources, the shell will abort immediately if
 it detects a badly formed argument\&.  However, if it fails to set a limit
-for some other reson it will continue trying to set the remaining limits\&.
+for some other reason it will continue trying to set the remaining limits\&.
 .PP
 .PD 0
 .TP
@@ -2008,7 +2029,7 @@ See the section `Zle Builtins\&' in \fIzshzle\fP(1)\&.
 \fBzmodload\fP [ \fB\-dL\fP ] [ \&.\&.\&. ]
 .TP
 .PD 0
-\fBzmodload \-F\fP [ \fB\-lLe\fP \fB\-P\fP \fBparam\fP ] \fImodule\fP [\fB+\-\fP]\fIfeature\&.\&.\&.\fP
+\fBzmodload \-F\fP [ \fB\-lLme\fP \fB\-P\fP \fBparam\fP ] \fImodule\fP [\fB+\-\fP]\fIfeature\&.\&.\&.\fP
 .TP
 .PD 0
 \fBzmodload \-e\fP [ \fB\-A\fP ] [ \&.\&.\&. ]
@@ -2076,7 +2097,7 @@ will not be loaded if its boot function fails\&.  Similarly a module
 can only be unloaded if its cleanup function runs successfully\&.
 .RE
 .TP
-\fBzmodload \-F\fP [ \fB\-alLe\fP \fB\-P\fP \fBparam\fP ] \fImodule\fP [\fB+\-\fP]\fIfeature\&.\&.\&.\fP
+\fBzmodload \-F\fP [ \fB\-almLe\fP \fB\-P\fP \fBparam\fP ] \fImodule\fP [\fB+\-\fP]\fIfeature\&.\&.\&.\fP
 \fBzmodload \-F\fP allows more selective control over the features provided
 by modules\&.  With no options apart from \fB\-F\fP, the module named
 \fImodule\fP is loaded, if it was not already loaded, and the list of
@@ -2131,6 +2152,12 @@ any feature given with a prefix \fB+\fP or \fB\-\fP is tested to
 see if is provided and in the given state\&.  If the tests on all features
 in the list succeed, status 0 is returned, else status 1\&.
 .PP
+With \fB\-m\fP, each entry in the given list of features is taken
+as a pattern to be matched against the list of features provided
+by the module\&.  An initial \fB+\fP or \fB\-\fP must be given explicitly\&.
+This may not be combined with the \fB\-a\fP option as autoloads must
+be specified explicitly\&.
+.PP
 With \fB\-a\fP, the given list of features is marked for autoload from
 the specified module, which may not yet be loaded\&.  An optional \fB+\fP
 may appear before the feature name\&.  If the feature is prefixed with
@@ -2140,7 +2167,7 @@ features; when the module is loaded only the requested feature is
 enabled\&.  Autoload requests are preserved if the module is
 subsequently unloaded until an explicit `\fBzmodload \-Fa\fP \fImodule\fP
 \fB\-\fP\fIfeature\fP\&' is issued\&.  It is not an error to request an autoload
-for a feature of a module that is already loaded\&.  
+for a feature of a module that is already loaded\&.
 .PP
 When the module is loaded each autoload is checked against the features
 actually provided by the module; if the feature is not provided the

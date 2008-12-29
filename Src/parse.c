@@ -720,7 +720,8 @@ par_sublist2(int *complex)
 static int
 par_pline(int *complex)
 {
-    int p, line = lineno;
+    int p;
+    zlong line = toklineno;
 
     p = ecadd(0);
 
@@ -1414,8 +1415,9 @@ par_subsh(int *complex)
 static void
 par_funcdef(void)
 {
-    int oecused = ecused, oldlineno = lineno, num = 0, onp, p, c = 0;
+    int oecused = ecused, num = 0, onp, p, c = 0;
     int so, oecssub = ecssub;
+    zlong oldlineno = lineno;
 
     lineno = 0;
     nocorrect = 1;
@@ -1565,6 +1567,18 @@ par_simple(int *complex, int nr)
 		str = p + 1;
 	    } else
 		equalsplit(tokstr, &str);
+	    for (p = str; *p; p++) {
+		/*
+		 * We can't treat this as "simple" if it contains
+		 * expansions that require process subsitution, since then
+		 * we need process handling.
+		 */
+		if (p[1] == Inpar &&
+		    (*p == Equals || *p == Inang || *p == Outang)) {
+		    *complex = 1;
+		    break;
+		}
+	    }
 	    ecstr(name);
 	    ecstr(str);
 	    isnull = 0;
@@ -1646,7 +1660,11 @@ par_simple(int *complex, int nr)
 	    p += nrediradd;
 	    sr += nrediradd;
 	} else if (tok == INOUTPAR) {
-	    int oldlineno = lineno, onp, so, oecssub = ecssub;
+	    zlong oldlineno = lineno;
+	    int onp, so, oecssub = ecssub;
+
+	    if (!isset(MULTIFUNCDEF) && argc > 1)
+		YYERROR(oecused);
 
 	    *complex = c;
 	    lineno = 0;
@@ -1687,8 +1705,7 @@ par_simple(int *complex, int nr)
 		sl = ecadd(0);
 		pl = ecadd(WCB_PIPE(WC_PIPE_END, 0));
 
-		par_cmd(&c);
-		if (!c) {
+		if (!par_cmd(&c)) {
 		    cmdpop();
 		    YYERROR(oecused);
 		}
@@ -2188,12 +2205,14 @@ yyerror(int noerr)
     for (t0 = 0; t0 != 20; t0++)
 	if (!t || !t[t0] || t[t0] == '\n')
 	    break;
-    if (t0 == 20)
-	zwarn("parse error near `%l...'", t, 20);
-    else if (t0)
-	zwarn("parse error near `%l'", t, t0);
-    else
-	zwarn("parse error");
+    if (!(histdone & HISTFLAG_NOEXEC)) {
+	if (t0 == 20)
+	    zwarn("parse error near `%l...'", t, 20);
+	else if (t0)
+	    zwarn("parse error near `%l'", t, t0);
+	else
+	    zwarn("parse error");
+    }
     if (!noerr && noerrs != 2)
 	errflag = 1;
 }
@@ -2812,7 +2831,7 @@ build_dump(char *nam, char *dump, char **files, int ali, int map, int flags)
 	close(fd);
 	file = metafy(file, flen, META_REALLOC);
 
-	if (!(prog = parse_string(file)) || errflag) {
+	if (!(prog = parse_string(file, 1)) || errflag) {
 	    errflag = 0;
 	    close(dfd);
 	    zfree(file, flen);
@@ -2861,7 +2880,8 @@ cur_add_func(char *nam, Shfunc shf, LinkList names, LinkList progs,
 	    return 1;
 	}
 	noaliases = (shf->node.flags & PM_UNALIASED);
-	if (!(prog = getfpfunc(shf->node.nam, NULL)) || prog == &dummy_eprog) {
+	if (!(prog = getfpfunc(shf->node.nam, NULL, NULL)) ||
+	    prog == &dummy_eprog) {
 	    noaliases = ona;
 	    zwarnnam(nam, "can't load function: %s", shf->node.nam);
 	    return 1;

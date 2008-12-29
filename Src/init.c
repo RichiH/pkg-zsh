@@ -79,10 +79,10 @@ int tclines, tccolumns;
 /**/
 mod_export int hasam, hasxn;
 
-/* Pointer to read-key function from zle */
+/* Value of the Co (max_colors) entry: may not be set */
 
 /**/
-mod_export int (*getkeyptr) _((int, int *));
+mod_export int tccolours;
 
 /* SIGCHLD mask */
 
@@ -149,7 +149,7 @@ loop(int toplevel, int justonce)
 	    int toksav = tok;
 
 	    if (toplevel &&
-		(getshfunc("preexec") != &dummy_eprog ||
+		(getshfunc("preexec") ||
 		 paramtab->getnode(paramtab, "preexec_functions"))) {
 		LinkList args;
 		char *cmdstr;
@@ -168,9 +168,9 @@ loop(int toplevel, int justonce)
 		else
 		    addlinknode(args, "");
 		addlinknode(args, dupstring(getjobtext(prog, NULL)));
-		addlinknode(args, cmdstr = getpermtext(prog, NULL));
+		addlinknode(args, cmdstr = getpermtext(prog, NULL, 0));
 
-		callhookfunc("preexec", args, 1);
+		callhookfunc("preexec", args, 1, NULL);
 
 		/* The only permanent storage is from getpermtext() */
 		zsfree(cmdstr);
@@ -191,10 +191,6 @@ loop(int toplevel, int justonce)
 	    exit(lastval);
 	if (((!interact || sourcelevel) && errflag) || retflag)
 	    break;
-	if (trapreturn) {
-	    lastval = trapreturn;
-	    trapreturn = 0;
-	}
 	if (isset(SINGLECOMMAND) && toplevel) {
 	    if (sigtrapped[SIGEXIT])
 		dotrap(SIGEXIT);
@@ -272,7 +268,7 @@ parseargs(char **argv)
 		/* -c command */
 		cmd = *argv;
 		opts[INTERACTIVE] &= 1;
-		scriptname = ztrdup("zsh");
+		scriptname = scriptfilename = ztrdup("zsh");
 	    } else if (**argv == 'o') {
 		if (!*++*argv)
 		    argv++;
@@ -329,6 +325,7 @@ parseargs(char **argv)
 	    }
 	    opts[INTERACTIVE] &= 1;
 	    argzero = *argv;
+	    scriptfilename = argzero;
 	    argv++;
 	}
 	while (*argv)
@@ -531,7 +528,7 @@ static char *tccapnams[TC_COUNT] = {
     "cl", "le", "LE", "nd", "RI", "up", "UP", "do",
     "DO", "dc", "DC", "ic", "IC", "cd", "ce", "al", "dl", "ta",
     "md", "so", "us", "me", "se", "ue", "ch",
-    "ku", "kd", "kl", "kr", "sc", "rc", "bc"
+    "ku", "kd", "kl", "kr", "sc", "rc", "bc", "AF", "AB"
 };
 
 /* Initialise termcap */
@@ -590,6 +587,7 @@ init_term(void)
 
 	tclines = tgetnum("li");
 	tccolumns = tgetnum("co");
+	tccolours = tgetnum("Co");
 
 	/* if there's no termcap entry for cursor up, use single line mode: *
 	 * this is flagged by termflags which is examined in zle_refresh.c  *
@@ -711,8 +709,6 @@ setupvals(void)
     zero_mnumber.type = MN_INTEGER;
     zero_mnumber.u.l = 0;
 
-    getkeyptr = NULL;
-
     lineno = 1;
     noeval = 0;
     curhist = 0;
@@ -806,7 +802,7 @@ setupvals(void)
     term  = ztrdup("");
 
     nullcmd     = ztrdup("cat");
-    readnullcmd = ztrdup("pager");
+    readnullcmd = ztrdup(DEFAULT_READNULLCMD);
 
     /* We cache the uid so we know when to *
      * recheck the info for `USERNAME'     */
@@ -881,7 +877,8 @@ setupvals(void)
     lastmailcheck = time(NULL);
     locallevel = sourcelevel = 0;
     sfcontext = SFC_NONE;
-    trapreturn = 0;
+    trap_return = 0;
+    trap_state = TRAP_STATE_INACTIVE;
     noerrexit = -1;
     nohistsave = 1;
     dirstack = znewlinklist();
@@ -903,6 +900,9 @@ setupvals(void)
     for (i = 0; i < 10; i++)
 	if (close_fds[i])
 	    close(i);
+
+    /* Colour sequences for outputting colours in prompts and zle */
+    set_default_colour_sequences();
 }
 
 /* Initialize signal handling */
@@ -1052,12 +1052,16 @@ mod_export int
 source(char *s)
 {
     Eprog prog;
-    int tempfd = -1, fd, cj, oldlineno;
+    int tempfd = -1, fd, cj;
+    zlong oldlineno;
     int oldshst, osubsh, oloops;
     FILE *obshin;
     char *old_scriptname = scriptname, *us;
+    char *old_scriptfilename = scriptfilename;
     unsigned char *ocs;
     int ocsp;
+    int otrap_return = trap_return, otrap_state = trap_state;
+    struct funcstack fstack;
 
     if (!s || 
 	(!(prog = try_source_file((us = unmeta(s)))) &&
@@ -1087,8 +1091,27 @@ source(char *s)
     loops  = 0;
     dosetopt(SHINSTDIN, 0, 1);
     scriptname = s;
+    scriptfilename = s;
+
+    /*
+     * The special return behaviour of traps shouldn't
+     * trigger in files sourced from traps; the return
+     * is just a return from the file.
+     */
+    trap_state = TRAP_STATE_INACTIVE;
 
     sourcelevel++;
+
+    fstack.name = scriptfilename;
+    fstack.caller = funcstack ? funcstack->name :
+	dupstring(old_scriptfilename ? old_scriptfilename : "zsh");
+    fstack.flineno = 0;
+    fstack.lineno = oldlineno;
+    fstack.filename = scriptfilename;
+    fstack.prev = funcstack;
+    fstack.tp = FS_SOURCE;
+    funcstack = &fstack;
+
     if (prog) {
 	pushheap();
 	errflag = 0;
@@ -1096,7 +1119,11 @@ source(char *s)
 	popheap();
     } else
 	loop(0, 0);		     /* loop through the file to be sourced  */
+    funcstack = funcstack->prev;
     sourcelevel--;
+
+    trap_state = otrap_state;
+    trap_return = otrap_return;
 
     /* restore the current shell state */
     if (prog)
@@ -1116,6 +1143,7 @@ source(char *s)
     if (!exit_pending)
 	retflag = 0;
     scriptname = old_scriptname;
+    scriptfilename = old_scriptfilename;
     free(cmdstack);
     cmdstack = ocs;
     cmdsp = ocsp;
@@ -1172,83 +1200,109 @@ noop_function_int(UNUSED(int nothing))
     /* do nothing */
 }
 
-/* ZLE entry point pointers.  They are defined here because the initial *
- * values depend on whether ZLE is linked in or not -- if it is, we     *
- * avoid wasting space with the fallback functions.  No other source    *
- * file needs to know which modules are linked in.                      */
+/*
+ * ZLE entry point pointer.
+ * No other source file needs to know which modules are linked in.
+ */
+/**/
+mod_export ZleEntryPoint zle_entry_ptr;
 
-#ifdef LINKED_XMOD_zshQszle
-
+/*
+ * State of loading of zle.
+ * 0 = Not loaded, not attempted.
+ * 1 = Loaded successfully
+ * 2 = Failed to load.
+ */
 /**/
-mod_export ZleVoidFn trashzleptr = noop_function;
-/**/
-mod_export ZleVoidFn zle_resetpromptptr = noop_function;
-/**/
-mod_export ZleVoidFn zrefreshptr = noop_function;
-/**/
-mod_export ZleVoidIntFn zleaddtolineptr = noop_function_int;
-/**/
-mod_export ZleGetLineFn zlegetlineptr = NULL;
-/**/
-mod_export ZleReadFn zlereadptr = autoload_zleread;
-/**/
-mod_export ZleVoidIntFn zlesetkeymapptr = noop_function_int;
-
-#else /* !LINKED_XMOD_zshQszle */
-
-mod_export ZleVoidFn trashzleptr = noop_function;
-mod_export ZleVoidFn zle_resetpromptptr = noop_function;
-mod_export ZleVoidFn zrefreshptr = noop_function;
-mod_export ZleVoidIntFn zleaddtolineptr = noop_function_int;
-mod_export ZleGetLineFn zlegetlineptr = NULL;
-# ifdef UNLINKED_XMOD_zshQszle
-mod_export ZleReadFn zlereadptr = autoload_zleread;
-mod_export ZleVoidIntFn zlesetkeymapptr = autoload_zlesetkeymap;
-# else /* !UNLINKED_XMOD_zshQszle */
-mod_export ZleReadFn zlereadptr = fallback_zleread;
-mod_export ZleVoidIntFn zlesetkeymapptr = noop_function_int;
-# endif /* !UNLINKED_XMOD_zshQszle */
-
-#endif /* !LINKED_XMOD_zshQszle */
-
-/**/
-char *
-autoload_zleread(char **lp, char **rp, int ha, int con)
-{
-    zlereadptr = fallback_zleread;
-    if (load_module("zsh/zle", NULL, 0) != 1)
-	(void)load_module("zsh/compctl", NULL, 0);
-    return zlereadptr(lp, rp, ha, con);
-}
+mod_export int zle_load_state;
 
 /**/
 mod_export char *
-fallback_zleread(char **lp, UNUSED(char **rp), UNUSED(int ha), UNUSED(int con))
+zleentry(VA_ALIST1(int cmd))
+VA_DCL
 {
-    char *pptbuf;
-    int pptlen;
+    char *ret = NULL;
+    va_list ap;
+    VA_DEF_ARG(int cmd);
 
-    pptbuf = unmetafy(promptexpand(lp ? *lp : NULL, 0, NULL, NULL), &pptlen);
-    write(2, (WRITE_ARG_2_T)pptbuf, pptlen);
-    free(pptbuf);
+    VA_START(ap, cmd);
+    VA_GET_ARG(ap, cmd, int);
 
-    return shingetline();
-}
+#if defined(LINKED_XMOD_zshQszle) || defined(UNLINKED_XMOD_zshQszle)
+    /* autoload */
+    switch (zle_load_state) {
+    case 0:
+	/*
+	 * Some commands don't require us to load ZLE.
+	 * These also have no fallback.
+	 */
+	if (cmd != ZLE_CMD_TRASH && cmd != ZLE_CMD_RESET_PROMPT &&
+	    cmd != ZLE_CMD_REFRESH)
+	{
+	    if (load_module("zsh/zle", NULL, 0) != 1) {
+		(void)load_module("zsh/compctl", NULL, 0);
+		ret = zle_entry_ptr(cmd, ap);
+		/* Don't execute fallback code */
+		cmd = -1;
+	    } else {
+		zle_load_state = 2;
+		/* Execute fallback code below */
+	    }
+	}
+	break;
 
-/**/
-#ifdef UNLINKED_XMOD_zshQszle
+    case 1:
+	ret = zle_entry_ptr(cmd, ap);
+	/* Don't execute fallback code */
+	cmd = -1;
+	break;
 
-/**/
-static void
-autoload_zlesetkeymap(int mode)
-{
-    zlesetkeymapptr = noop_function_int;
-    (void)load_module("zsh/zle", NULL, 0);
-    (*zlesetkeymapptr)(mode);
-}
-
-/**/
+    case 2:
+	/* Execute fallback code */
+	break;
+    }
 #endif
+
+    switch (cmd) {
+	/*
+	 * Only the read command really needs a fallback if zle
+	 * is not available.  ZLE_CMD_GET_LINE has traditionally
+	 * had local code in bufferwords() to do this, but that'
+	 * probably only because bufferwords() is part of completion
+	 * and so everything to do with it is horribly complicated.
+	 */
+    case ZLE_CMD_READ:
+    {
+	char *pptbuf, **lp;
+	int pptlen;
+
+	lp = va_arg(ap, char **);
+
+	pptbuf = unmetafy(promptexpand(lp ? *lp : NULL, 0, NULL, NULL,
+				       NULL),
+			  &pptlen);
+	write(2, (WRITE_ARG_2_T)pptbuf, pptlen);
+	free(pptbuf);
+
+	ret = shingetline();
+	break;
+    }
+
+    case ZLE_CMD_GET_LINE:
+    {
+	int *ll, *cs;
+
+	ll = va_arg(ap, int *);
+	cs = va_arg(ap, int *);
+	*ll = *cs = 0;
+	ret = ztrdup("");
+	break;
+    }
+    }
+
+    va_end(ap);
+    return ret;
+}
 
 /* compctl entry point pointers.  Similar to the ZLE ones. */
 
