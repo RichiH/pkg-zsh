@@ -7,7 +7,7 @@ INSTALL_DIR     = $(INSTALL) -p -d -o root -g root  -m  755
 
 package=zsh
 ifeq (zsh-beta,$(package))
-snapshot_date := $(shell dpkg-parsechangelog | sed -n '/^Version: [0-9.][0-9.]*-dev-[0-9][0-9]*+20[0-9][0-9]\([0-9][0-9][0-9][0-9]\)-[0-9][0-9]*$$/ {s//\1/;p}')
+snapshot_date := $(shell dpkg-parsechangelog | sed -n '/^Version: [0-9.][0-9.]*.*+20[0-9][0-9]\([0-9][0-9][0-9][0-9]\)-[0-9][0-9]*$$/ {s//\1/;p}')
 endif
 
 CFLAGS = -Wall -g
@@ -86,7 +86,7 @@ endif
 	mkdir -p obj/testhome
 ifeq (zsh-beta,$(package))
 	test -f Config/version.mk.orig || cp Config/version.mk Config/version.mk.orig
-	sed -i -e 's/^VERSION=\([^+]*\)$$/VERSION=\1+$(snapshot_date)/' Config/version.mk
+	sed -i -e 's/^VERSION=\([^+]*\)$$/VERSION=\1-cvs$(snapshot_date)/' Config/version.mk
 endif
 	cd obj && CFLAGS='$(CFLAGS)' ../configure $(CONFIGFLAGS)
 	touch stamp-configure
