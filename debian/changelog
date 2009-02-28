@@ -1,3 +1,14 @@
+zsh (4.3.9-2) unstable; urgency=low
+
+  * Patch from Daniel Friesel to complete .flac files for mplayer.
+    closes: #516816.
+  * Patch from Sven Joachim to complete aptitude build-dep.
+    closes: #512671.
+  * Tim Schumacher's completion for xmms2, thanks to Louis-David
+    Mitterrand.  closes: #512610.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 28 Feb 2009 14:44:32 -0500
+
 zsh (4.3.9-1) unstable; urgency=low
 
   * New upstream version.
