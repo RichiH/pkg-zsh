@@ -1,3 +1,11 @@
+zsh (4.3.9-3) unstable; urgency=medium
+
+  * ZU#13477: fix completion of files after rm.  closes: #517448.
+  * Patch from Chris Lamb to complete custom Django management commands.
+    closes: #517672.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 01 Mar 2009 11:16:34 -0500
+
 zsh (4.3.9-2) unstable; urgency=low
 
   * Patch from Daniel Friesel to complete .flac files for mplayer.
