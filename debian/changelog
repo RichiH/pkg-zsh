@@ -1,3 +1,14 @@
+zsh (4.3.9-4) unstable; urgency=low
+
+  * ZW#26675: add POSIX_ALIASES option.  closes: #516998.
+  * ZW#26602: fix buffer overflow in ! (history) handling.
+    closes: #521108.
+  * Bump to Standards-Version 3.8.1.
+  * ZW#26625, ZU#13593: inopportune interrupt could wreck terminal set
+    up (combined patch thanks to Vincent Lefevre).  closes: #521174.
+
+ -- Clint Adams <schizo@debian.org>  Wed, 25 Mar 2009 23:36:43 -0400
+
 zsh (4.3.9-3) unstable; urgency=medium
 
   * ZU#13477: fix completion of files after rm.  closes: #517448.
