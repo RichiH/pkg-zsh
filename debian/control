@@ -77,7 +77,7 @@ Description: A shell with lots of features (development files)
 
 Package: zsh-dbg
 Architecture: any
-Section: devel
+Section: debug
 Priority: extra
 Depends: zsh (= ${binary:Version})
 Description: A shell with lots of features (debugging symbols)
