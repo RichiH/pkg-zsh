@@ -1,3 +1,10 @@
+zsh (4.3.9-5) unstable; urgency=low
+
+  * Patch from Greg Klanderman to use device/inode/mtime for svn
+    completion caching.  closes: #512308.
+
+ -- Clint Adams <schizo@debian.org>  Thu, 21 May 2009 21:25:43 -0400
+
 zsh (4.3.9-4) unstable; urgency=low
 
   * ZW#26675: add POSIX_ALIASES option.  closes: #516998.
