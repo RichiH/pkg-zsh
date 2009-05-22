@@ -304,11 +304,9 @@ binary-arch-static:	checkroot build-static
 	-rm -rf debian/tmp-static
 	$(INSTALL_DIR) debian/tmp-static/usr/share/man/man1/
 	cd debian/tmp-static && $(INSTALL_DIR) bin \
-		usr/share/lintian/overrides \
 		usr/share/doc/$(package)-static \
 		DEBIAN
 
-	$(INSTALL_FILE) debian/lintianoverrides debian/tmp-static/usr/share/lintian/overrides/$(package)-static
 	$(INSTALL_SCRIPT) debian/static.prerm debian/tmp-static/DEBIAN/prerm
 	$(INSTALL_SCRIPT) debian/static.postinst debian/tmp-static/DEBIAN/postinst
 	$(INSTALL_SCRIPT) debian/static.postrm debian/tmp-static/DEBIAN/postrm
