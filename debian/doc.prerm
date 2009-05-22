@@ -3,10 +3,8 @@
 case "$1" in
     remove|deconfigure)
 	install-info --quiet --remove /usr/share/info/zsh.info.gz
-	if test -x /usr/sbin/install-docs ; then install-docs -r zsh ; fi
     ;;
     upgrade)
-	if test -x /usr/sbin/install-docs ; then install-docs -r zsh ; fi
     ;;
 
     failed-upgrade)

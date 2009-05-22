@@ -18,6 +18,4 @@ esac
 
 install-info --section Shells Shells --quiet /usr/share/info/zsh.info.gz
 
-if test -x /usr/sbin/install-docs ; then install-docs -i /usr/share/doc-base/zsh ; fi
-
 exit 0
