@@ -58,6 +58,11 @@ endmenu()
 texinode(Completion Special Parameters)(Completion Builtin Commands)()(Completion Widgets)
 sect(Completion Special Parameters)
 
+The parameters tt(ZLE_REMOVE_SUFFIX_CHARS) and tt(ZLE_SPACE_SUFFIX_CHARS)
+are used by the completion mechanism, but are not special.
+ifzman(See em(Parameters Used By The Shell) in zmanref(zshparam))\
+ifnzman(noderef(Parameters Used By The Shell)).
+
 Inside completion widgets, and any functions called from them, some
 parameters have special meaning; outside these functions they are not
 special to the shell in any way.  These parameters are used to pass
@@ -280,7 +285,7 @@ done for the tt(LIST_ROWS_FIRST) option with the substring tt(rows).
 Finally, if the value contains the string tt(explanations), only the
 explanation strings, if any, will be listed and if it contains
 tt(messages), only the messages (added with the tt(-x) option of
-tt(compadd)) will be listed.  If it contains both tt(explanations) and 
+tt(compadd)) will be listed.  If it contains both tt(explanations) and
 tt(messages) both kinds of explanation strings will be listed.  It
 will be set appropriately on entry to a completion widget and may be
 changed there.

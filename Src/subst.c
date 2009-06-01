@@ -56,43 +56,27 @@ prefork(LinkList list, int flags)
 
     queue_signals();
     for (node = firstnode(list); node; incnode(node)) {
-	char *str, c;
-
-	str = (char *)getdata(node);
-	if (((c = *str) == Inang || c == Outang || c == Equals) &&
-	    str[1] == Inpar) {
-	    if (c == Inang || c == Outang)
-		setdata(node, (void *) getproc(str));	/* <(...) or >(...) */
-	    else
-		setdata(node, (void *) getoutputfile(str));	/* =(...) */
-	    if (!getdata(node)) {
-		setdata(node, dupstring(""));
-		unqueue_signals();
-		return;
-	    }
-	} else {
-	    if (isset(SHFILEEXPANSION)) {
-		/*
-		 * Here and below we avoid taking the address
-		 * of a void * and then pretending it's a char **
-		 * instead of a void ** by a little inefficiency.
-		 * This could be avoided with some extra linked list
-		 * machinery, but that would need quite a lot of work
-		 * to ensure consistency.  What we really need is
-		 * templates...
-		 */
-		char *cptr = (char *)getdata(node);
-		filesub(&cptr, flags & (PF_TYPESET|PF_ASSIGN));
-		/*
-		 * The assignment is so simple it's not worth
-		 * testing if cptr changed...
-		 */
-		setdata(node, cptr);
-	    }
-	    if (!(node = stringsubst(list, node, flags & PF_SINGLE, asssub))) {
-		unqueue_signals();
-		return;
-	    }
+	if (isset(SHFILEEXPANSION)) {
+	    /*
+	     * Here and below we avoid taking the address
+	     * of a void * and then pretending it's a char **
+	     * instead of a void ** by a little inefficiency.
+	     * This could be avoided with some extra linked list
+	     * machinery, but that would need quite a lot of work
+	     * to ensure consistency.  What we really need is
+	     * templates...
+	     */
+	    char *cptr = (char *)getdata(node);
+	    filesub(&cptr, flags & (PF_TYPESET|PF_ASSIGN));
+	    /*
+	     * The assignment is so simple it's not worth
+	     * testing if cptr changed...
+	     */
+	    setdata(node, cptr);
+	}
+	if (!(node = stringsubst(list, node, flags & PF_SINGLE, asssub))) {
+	    unqueue_signals();
+	    return;
 	}
     }
     for (node = firstnode(list); node; incnode(node)) {
@@ -166,6 +150,42 @@ stringsubst(LinkList list, LinkNode node, int ssub, int asssub)
     int qt;
     char *str3 = (char *)getdata(node);
     char *str  = str3, c;
+
+    while (!errflag && (c = *str)) {
+	if (((c = *str) == Inang || c == OutangProc ||
+	     (str == str3 && c == Equals))
+	    && str[1] == Inpar) {
+	    char *subst, *rest, *snew, *sptr;
+	    int str3len = str - str3, sublen, restlen;
+
+	    if (c == Inang || c == OutangProc)
+		subst = getproc(str, &rest);	/* <(...) or >(...) */
+	    else
+		subst = getoutputfile(str, &rest);	/* =(...) */
+	    if (!subst)
+		subst = "";
+
+	    sublen = strlen(subst);
+	    restlen = strlen(rest);
+	    sptr = snew = hcalloc(str3len + sublen + restlen + 1);
+	    if (str3len) {
+		memcpy(sptr, str3, str3len);
+		sptr += str3len;
+	    }
+	    if (sublen) {
+		memcpy(sptr, subst, sublen);
+		sptr += sublen;
+	    }
+	    if (restlen)
+		memcpy(sptr, rest, restlen);
+	    sptr[restlen] = '\0';
+	    str3 = snew;
+	    str = snew + str3len + sublen;
+	    setdata(node, str3);
+	} else
+	    str++;
+    }
+    str = str3;
 
     while (!errflag && (c = *str)) {
 	if ((qt = c == Qstring) || c == String) {
@@ -519,12 +539,43 @@ filesub(char **namptr, int assign)
     }
 }
 
+#define isend(c) ( !(c) || (c)=='/' || (c)==Inpar || (assign && (c)==':') )
+#define isend2(c) ( !(c) || (c)==Inpar || (assign && (c)==':') )
+
+/*
+ * do =foo substitution, or equivalent.
+ * on entry, str should point to the "foo".
+ * if assign, this is in an assignment
+ * if nomatch, report hard error on failure.
+ * if successful, returns the expansion, else NULL.
+ */
+
+/**/
+char *
+equalsubstr(char *str, int assign, int nomatch)
+{
+    char *pp, *cnam, *cmdstr, *ret;
+
+    for (pp = str; !isend2(*pp); pp++)
+	;
+    cmdstr = dupstrpfx(str, pp-str);
+    untokenize(cmdstr);
+    remnulargs(cmdstr);
+    if (!(cnam = findcmd(cmdstr, 1))) {
+	if (nomatch)
+	    zerr("%s not found", cmdstr);
+	return NULL;
+    }
+    ret = dupstring(cnam);
+    if (*pp)
+	ret = dyncat(ret, pp);
+    return ret;
+}
+
 /**/
 mod_export int
 filesubstr(char **namptr, int assign)
 {
-#define isend(c) ( !(c) || (c)=='/' || (c)==Inpar || (assign && (c)==':') )
-#define isend2(c) ( !(c) || (c)==Inpar || (assign && (c)==':') )
     char *str = *namptr;
 
     if (*str == Tilde && str[1] != '=' && str[1] != Equals) {
@@ -586,27 +637,17 @@ filesubstr(char **namptr, int assign)
 	    return 1;
 	}
     } else if (*str == Equals && isset(EQUALS) && str[1]) {   /* =foo */
-	char *pp, *cnam, *cmdstr, *str1 = str+1;
-
-	for (pp = str1; !isend2(*pp); pp++)
-	    ;
-	cmdstr = dupstrpfx(str1, pp-str1);
-	untokenize(cmdstr);
-	remnulargs(cmdstr);
-	if (!(cnam = findcmd(cmdstr, 1))) {
-	    if (isset(NOMATCH))
-		zerr("%s not found", cmdstr);
-	    return 0;
+	char *expn = equalsubstr(str+1, assign, isset(NOMATCH));
+	if (expn) {
+	    *namptr = expn;
+	    return 1;
 	}
-	*namptr = dupstring(cnam);
-	if (*pp)
-	    *namptr = dyncat(*namptr, pp);
-	return 1;
     }
     return 0;
+}
+
 #undef isend
 #undef isend2
-}
 
 /**/
 static char *
@@ -673,9 +714,10 @@ dopadding(char *str, int prenum, int postnum, char *preone, char *postone,
     convchar_t cchar;
 
     MB_METACHARINIT();
-    if (*ifs)
-	def = dupstrpfx(ifs, MB_METACHARLEN(ifs));
-    else
+    if (!ifs || *ifs) {
+	char *tmpifs = ifs ? ifs : DEFAULT_IFS;
+	def = dupstrpfx(tmpifs, MB_METACHARLEN(tmpifs));
+    } else
 	def = "";
     if (preone && !*preone)
 	preone = def;
@@ -1514,7 +1556,7 @@ paramsubst(LinkList l, LinkNode n, char **str, int qt, int ssub)
 	 * doesn't have parameter flags it might be neater to
 	 * handle this with the ^, =, ~ stuff, below.
 	 */
-	if ((c = *s) == '!' && s[1] != Outbrace && emulation == EMULATE_KSH) {
+	if ((c = *s) == '!' && s[1] != Outbrace && EMULATION(EMULATE_KSH)) {
 	    hkeys = SCANPM_WANTKEYS;
 	    s++;
 	} else if (c == '(' || c == Inpar) {
@@ -2714,7 +2756,7 @@ paramsubst(LinkList l, LinkNode n, char **str, int qt, int ssub)
      */
     if (presc) {
 	int ops = opts[PROMPTSUBST], opb = opts[PROMPTBANG];
-	int opp = opts[PROMPTPERCENT], len;
+	int opp = opts[PROMPTPERCENT];
 
 	if (presc < 2) {
 	    opts[PROMPTPERCENT] = 1;
@@ -2736,10 +2778,8 @@ paramsubst(LinkList l, LinkNode n, char **str, int qt, int ssub)
 	    ap = aval;
 	    for (; *ap; ap++) {
 		char *tmps;
-		unmetafy(*ap, &len);
 		untokenize(*ap);
-		tmps = promptexpand(metafy(*ap, len, META_NOALLOC),
-				    0, NULL, NULL, NULL);
+		tmps = promptexpand(*ap, 0, NULL, NULL, NULL);
 		*ap = dupstring(tmps);
 		free(tmps);
 	    }
@@ -2747,10 +2787,8 @@ paramsubst(LinkList l, LinkNode n, char **str, int qt, int ssub)
 	    char *tmps;
 	    if (!copied)
 		val = dupstring(val), copied = 1;
-	    unmetafy(val, &len);
 	    untokenize(val);
-	    tmps = promptexpand(metafy(val, len, META_NOALLOC),
-					0, NULL, NULL, NULL);
+	    tmps = promptexpand(val, 0, NULL, NULL, NULL);
 	    val = dupstring(tmps);
 	    free(tmps);
 	}
@@ -3183,6 +3221,9 @@ modify(char **str, char **ptr)
 
 	for (; !c && **ptr;) {
 	    switch (**ptr) {
+            case 'a':
+            case 'A':
+	    case 'c':
 	    case 'h':
 	    case 'r':
 	    case 'e':
@@ -3321,6 +3362,19 @@ modify(char **str, char **ptr)
 			copy = dupstring(tt);
 		    *e = tc;
 		    switch (c) {
+                    case 'a':
+			chabspath(&copy);
+			break;
+		    case 'A':
+			chrealpath(&copy);
+			break;
+		    case 'c':
+		    {
+			char *copy2 = equalsubstr(copy, 0, 0);
+			if (copy2)
+			    copy = copy2;
+			break;
+		    }
 		    case 'h':
 			remtpath(&copy);
 			break;
@@ -3380,6 +3434,19 @@ modify(char **str, char **ptr)
 
 	    } else {
 		switch (c) {
+		case 'a':
+		    chabspath(str);
+		    break;
+		case 'A':
+		    chrealpath(str);
+		    break;
+		case 'c':
+		{
+		    char *copy2 = equalsubstr(*str, 0, 0);
+		    if (copy2)
+			*str = copy2;
+		    break;
+		}
 		case 'h':
 		    remtpath(str);
 		    break;

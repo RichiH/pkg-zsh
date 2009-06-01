@@ -1,4 +1,4 @@
-.TH "ZSHEXPN" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHEXPN" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshexpn \- zsh expansion and substitution
 .\" Yodl file: Zsh/expn.yo
@@ -56,7 +56,7 @@ most recent command is always retained in any case\&.  Each saved command in
 the history list is called a history \fIevent\fP and is assigned a number,
 beginning with 1 (one) when the shell starts up\&.  The history number that
 you may see in your prompt (see
-Prompt Expansion in \fIzshmisc\fP(1)) is the number that is to be assigned to the \fInext\fP command\&.
+EXPANSION OF PROMPT SEQUENCES in \fIzshmisc\fP(1)) is the number that is to be assigned to the \fInext\fP command\&.
 .PP
 .SS "Overview"
 A history expansion begins with the first character of the \fBhistchars\fP
@@ -202,20 +202,34 @@ noted\&.
 .PD 0
 .TP
 .PD
-\fBh\fP
-Remove a trailing pathname component, leaving the head\&.  This works
-like `\fBdirname\fP\&'\&.
+\fBa\fP
+Turn a file name into an absolute path:  prepends the current directory,
+if necessary, and resolves any use of `\fB\&.\&.\fP\&' and `\fB\&.\fP' in the path\&.
+Note that the transformation takes place even if the file or any
+intervening directories do not exist\&.
 .TP
-\fBr\fP
-Remove a filename extension of the form `\fB\&.\fP\fIxxx\fP\&', leaving
-the root name\&.
+\fBA\fP
+As `\fBa\fP\&', but also resolve use of symbolic links where possible\&.
+Note that resolution of `\fB\&.\&.\fP\&' occurs \fIbefore\fP resolution of symbolic
+links\&.  This call is equivalent to \fBa\fP unless your system has the
+\fBrealpath\fP system call (modern systems do)\&.
+.TP
+\fBc\fP
+Resolve a command name into an absolute path by searching the command
+path given by the \fBPATH\fP variable\&.  This does not work for commands
+containing directory parts\&.  Note also that this does not usually work as
+a glob qualifier unless a file of the same name is found in the
+current directory\&.
 .TP
 \fBe\fP
 Remove all but the extension\&.
 .TP
-\fBt\fP
-Remove all leading pathname components, leaving the tail\&.  This works
-like `\fBbasename\fP\&'\&.
+\fBh\fP
+Remove a trailing pathname component, leaving the head\&.  This works
+like `\fBdirname\fP\&'\&.
+.TP
+\fBl\fP
+Convert the words to all lowercase\&.
 .TP
 \fBp\fP
 Print the new command but do not execute it\&.  Only works with history
@@ -230,15 +244,9 @@ by \fBeval\fP\&.
 \fBQ\fP
 Remove one level of quotes from the substituted words\&.
 .TP
-\fBx\fP
-Like \fBq\fP, but break into words at whitespace\&.  Does not work with
-parameter expansion\&.
-.TP
-\fBl\fP
-Convert the words to all lowercase\&.
-.TP
-\fBu\fP
-Convert the words to all uppercase\&.
+\fBr\fP
+Remove a filename extension of the form `\fB\&.\fP\fIxxx\fP\&', leaving
+the root name\&.
 .TP
 \fBs/\fP\fIl\fP\fB/\fP\fIr\fP[\fB/\fP]
 Substitute \fIr\fP for \fIl\fP as described below\&.
@@ -259,6 +267,17 @@ Repeat the previous \fBs\fP substitution\&.  Like \fBs\fP, may be preceded
 immediately by a \fBg\fP\&.  In parameter expansion the \fB&\fP must appear
 inside braces, and in filename generation it must be quoted with a
 backslash\&.
+.TP
+\fBt\fP
+Remove all leading pathname components, leaving the tail\&.  This works
+like `\fBbasename\fP\&'\&.
+.TP
+\fBu\fP
+Convert the words to all uppercase\&.
+.TP
+\fBx\fP
+Like \fBq\fP, but break into words at whitespace\&.  Does not work with
+parameter expansion\&.
 .PP
 The \fBs/l/r/\fP substitution works as follows\&.  By default the left\-hand
 side of substitutions are not patterns, but character strings\&.  Any
@@ -339,12 +358,19 @@ Like \fBw\fP but words are considered to be the parts of the string
 that are separated by \fIsep\fP\&. Any character can be used instead of
 the `\fB:\fP\&'; opening parentheses are handled specially, see above\&.
 .SH "PROCESS SUBSTITUTION"
-Each command argument of the form
+Each part of a command argument that takes the form
 `\fB<(\fP\fIlist\fP\fB)\fP\&',
 `\fB>(\fP\fIlist\fP\fB)\fP\&' or
 `\fB=(\fP\fIlist\fP\fB)\fP\&'
-is subject to process substitution\&.
-In the case of the \fB<\fP or \fB>\fP forms, the shell runs process
+is subject to process substitution\&.  The expression may be preceeded
+or followed by other strings except that, to prevent clashes with
+commonly occurring strings and patterns, the last
+form must occur at the start of a command argument, and the forms
+are only expanded when first parsing command or assignment arguments\&.
+Process substitutions may be used following redirection operators; in this
+case, the substitution must appear with no trailing string\&.
+.PP
+In the case of the \fB<\fP or \fB>\fP forms, the shell runs the commands in
 \fIlist\fP asynchronously\&.  If the system supports the \fB/dev/fd\fP
 mechanism, the command argument is the name of the device file
 corresponding to a file descriptor; otherwise, if the system supports named
@@ -723,7 +749,8 @@ If the \fBMULTIBYTE\fP option is set and the number is greater than 127
 .TP
 \fB%\fP
 Expand all \fB%\fP escapes in the resulting words in the same way as in
-prompts (see the section `Prompt Expansion\&')\&. If this flag is given twice,
+prompts (see 
+EXPANSION OF PROMPT SEQUENCES in \fIzshmisc\fP(1))\&. If this flag is given twice,
 full prompt expansion is done on the resulting words, depending on the
 setting of the \fBPROMPT_PERCENT\fP, \fBPROMPT_SUBST\fP and \fBPROMPT_BANG\fP
 options\&.
@@ -2283,7 +2310,7 @@ sets the \fBNUMERIC_GLOB_SORT\fP option for the current pattern
 \fBo\fP\fIc\fP
 specifies how the names of the files should be sorted\&. If \fIc\fP is
 \fBn\fP they are sorted by name (the default); if it is \fBL\fP they
-are sorted depending on the size (length) of the files; if \fBl\fP 
+are sorted depending on the size (length) of the files; if \fBl\fP
 they are sorted by the number of links; if \fBa\fP, \fBm\fP, or \fBc\fP
 they are sorted by the time of the last access, modification, or
 inode change respectively; if \fBd\fP, files in subdirectories appear before
@@ -2296,6 +2323,18 @@ youngest file\&. Also note that the modifiers \fB^\fP and \fB\-\fP are used,
 so `\fB*(^\-oL)\fP\&' gives a list of all files sorted by file size in descending
 order, following any symbolic links\&.  Unless \fBoN\fP is used, multiple order
 specifiers may occur to resolve ties\&.
+.RS
+.PP
+\fBoe\fP and \fBo+\fP are special cases; they are each followed by shell code,
+delimited as for the \fBe\fP glob qualifier and the \fB+\fP glob qualifier
+respectively (see above)\&.  The code is executed for each matched file with
+the parameter \fBREPLY\fP set to the name of the file on entry\&.  The code
+should modify the parameter \fBREPLY\fP in some fashion\&.  On return, the value
+of the parameter is used instead of the file name as the string on which to
+sort\&.  Unlike other sort operators, \fBoe\fP and \fBo+\fP may be repeated, but
+note that the maximum number of sort operators of any kind that may appear
+in any glob expression is 12\&.
+.RE
 .TP
 \fBO\fP\fIc\fP
 like `\fBo\fP\&', but sorts in descending order; i\&.e\&. `\fB*(^oc)\fP' is the

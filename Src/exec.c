@@ -2722,7 +2722,8 @@ execcmd(Estate state, int input, int output, int how, int last1)
 #ifdef HAVE_NICE
 	/* Check if we should run background jobs at a lower priority. */
 	if ((how & Z_ASYNC) && isset(BGNICE))
-	    nice(5);
+	    if (nice(5) < 0)
+		zwarn("nice(5) failed: %e", errno);
 #endif /* HAVE_NICE */
 
     } else if (is_cursh) {
@@ -3560,7 +3561,7 @@ readoutput(int in, int qt)
 
 /**/
 static Eprog
-parsecmd(char *cmd)
+parsecmd(char *cmd, char **eptr)
 {
     char *str;
     Eprog prog;
@@ -3571,7 +3572,9 @@ parsecmd(char *cmd)
 	return NULL;
     }
     *str = '\0';
-    if (str[1] || !(prog = parse_string(cmd + 2, 0))) {
+    if (eptr)
+	*eptr = str+1;
+    if (!(prog = parse_string(cmd + 2, 0))) {
 	zerr("parse error in process substitution");
 	return NULL;
     }
@@ -3582,7 +3585,7 @@ parsecmd(char *cmd)
 
 /**/
 char *
-getoutputfile(char *cmd)
+getoutputfile(char *cmd, char **eptr)
 {
     pid_t pid;
     char *nam;
@@ -3592,7 +3595,7 @@ getoutputfile(char *cmd)
 
     if (thisjob == -1)
 	return NULL;
-    if (!(prog = parsecmd(cmd)))
+    if (!(prog = parsecmd(cmd, eptr)))
 	return NULL;
     if (!(nam = gettempname(NULL, 0)))
 	return NULL;
@@ -3677,7 +3680,7 @@ namedpipe(void)
 
 /**/
 char *
-getproc(char *cmd)
+getproc(char *cmd, char **eptr)
 {
 #if !defined(HAVE_FIFOS) && !defined(PATH_DEV_FD)
     zerr("doesn't look like your system supports FIFOs.");
@@ -3696,7 +3699,7 @@ getproc(char *cmd)
 	return NULL;
     if (!(pnam = namedpipe()))
 	return NULL;
-    if (!(prog = parsecmd(cmd)))
+    if (!(prog = parsecmd(cmd, eptr)))
 	return NULL;
     if (!jobtab[thisjob].filelist)
 	jobtab[thisjob].filelist = znewlinklist();
@@ -3723,7 +3726,7 @@ getproc(char *cmd)
     if (thisjob == -1)
 	return NULL;
     pnam = hcalloc(strlen(PATH_DEV_FD) + 6);
-    if (!(prog = parsecmd(cmd)))
+    if (!(prog = parsecmd(cmd, eptr)))
 	return NULL;
     mpipe(pipes);
     if ((pid = zfork(&bgtime))) {
@@ -3771,9 +3774,14 @@ getpipe(char *cmd, int nullexec)
     int pipes[2], out = *cmd == Inang;
     pid_t pid;
     struct timeval bgtime;
+    char *ends;
 
-    if (!(prog = parsecmd(cmd)))
+    if (!(prog = parsecmd(cmd, &ends)))
 	return -1;
+    if (*ends) {
+	zerr("invalid syntax for process substitution in redirection");
+	return -1;
+    }
     mpipe(pipes);
     if ((pid = zfork(&bgtime))) {
 	zclose(pipes[out]);
@@ -3992,6 +4000,7 @@ execfuncdef(Estate state, UNUSED(int do_exec))
 	shf->node.flags = 0;
 	shf->filename = ztrdup(scriptfilename);
 	shf->lineno = lineno;
+	shf->emulation = sticky_emulation;
 
 	if (!names) {
 	    /*
@@ -4214,7 +4223,7 @@ doshfunc(Shfunc shfunc, LinkList doshargs, int noreturnval)
     char *name = shfunc->node.nam;
     int flags = shfunc->node.flags;
     char *fname = dupstring(name);
-    int obreaks, saveemulation ;
+    int obreaks, saveemulation, savesticky_emulation, restore_sticky;
     Eprog prog;
     struct funcstack fstack;
 #ifdef MAX_FUNCTION_DEPTH
@@ -4254,6 +4263,26 @@ doshfunc(Shfunc shfunc, LinkList doshargs, int noreturnval)
      * function we need to restore the original options on exit.   */
     memcpy(saveopts, opts, sizeof(opts));
     saveemulation = emulation;
+    savesticky_emulation = sticky_emulation;
+
+    if (shfunc->emulation && sticky_emulation != shfunc->emulation) {
+	/*
+	 * Function is marked for sticky emulation.
+	 * Enable it now.
+	 *
+	 * We deliberately do not do this if the sticky emulation
+	 * in effect is the same as that requested.  This enables
+	 * option setting naturally within emulation environments.
+	 * Note that a difference in EMULATE_FULLY (emulate with
+	 * or without -R) counts as a different environment.
+	 *
+	 * This propagates the sticky emulation to subfunctions.
+	 */
+	emulation = sticky_emulation = shfunc->emulation;
+	restore_sticky = 1;
+	installemulation();
+    } else
+	restore_sticky = 0;
 
     if (flags & PM_TAGGED)
 	opts[XTRACE] = 1;
@@ -4342,7 +4371,16 @@ doshfunc(Shfunc shfunc, LinkList doshargs, int noreturnval)
     zoptind = oldzoptind;
     scriptname = oldscriptname;
 
-    if (isset(LOCALOPTIONS)) {
+    if (restore_sticky) {
+	/*
+	 * If we switched to an emulation environment just for
+	 * this function, we interpret the option and emulation
+	 * switch as being a firewall between environments.
+	 */
+	memcpy(opts, saveopts, sizeof(opts));
+	emulation = saveemulation;
+	sticky_emulation = savesticky_emulation;
+    } else if (isset(LOCALOPTIONS)) {
 	/* restore all shell options except PRIVILEGED and RESTRICTED */
 	saveopts[PRIVILEGED] = opts[PRIVILEGED];
 	saveopts[RESTRICTED] = opts[RESTRICTED];
@@ -4394,10 +4432,12 @@ doshfunc(Shfunc shfunc, LinkList doshargs, int noreturnval)
 mod_export void
 runshfunc(Eprog prog, FuncWrap wrap, char *name)
 {
-    int cont;
-    VARARR(char, ou, underscoreused);
+    int cont, ouu;
+    char *ou;
 
-    memcpy(ou, underscore, underscoreused);
+    ou = zalloc(ouu = underscoreused);
+    if (ou)
+	memcpy(ou, underscore, underscoreused);
 
     while (wrap) {
 	wrap->module->wrapper++;
@@ -4408,13 +4448,19 @@ runshfunc(Eprog prog, FuncWrap wrap, char *name)
 	    (wrap->module->node.flags & MOD_UNLOAD))
 	    unload_module(wrap->module);
 
-	if (!cont)
+	if (!cont) {
+	    if (ou)
+		zfree(ou, ouu);
 	    return;
+	}
 	wrap = wrap->next;
     }
     startparamscope();
     execode(prog, 1, 0);
-    setunderscore(ou);
+    if (ou) {
+	setunderscore(ou);
+	zfree(ou, ouu);
+    }
     endparamscope();
 }
 

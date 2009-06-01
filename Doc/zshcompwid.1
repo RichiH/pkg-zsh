@@ -1,4 +1,4 @@
-.TH "ZSHCOMPWID" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHCOMPWID" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshcompwid \- zsh completion widgets
 .\" Yodl file: Zsh/compwid.yo
@@ -45,6 +45,10 @@ widget, in this case \fBexpand\-or\-complete\fP\&.
 .PP
 .PP
 .SH "COMPLETION SPECIAL PARAMETERS"
+.PP
+The parameters \fBZLE_REMOVE_SUFFIX_CHARS\fP and \fBZLE_SPACE_SUFFIX_CHARS\fP
+are used by the completion mechanism, but are not special\&.
+See \fIParameters Used By The Shell\fP in \fIzshparam\fP(1)\&.
 .PP
 Inside completion widgets, and any functions called from them, some
 parameters have special meaning; outside these functions they are not
@@ -268,7 +272,7 @@ done for the \fBLIST_ROWS_FIRST\fP option with the substring \fBrows\fP\&.
 Finally, if the value contains the string \fBexplanations\fP, only the
 explanation strings, if any, will be listed and if it contains
 \fBmessages\fP, only the messages (added with the \fB\-x\fP option of
-\fBcompadd\fP) will be listed\&.  If it contains both \fBexplanations\fP and 
+\fBcompadd\fP) will be listed\&.  If it contains both \fBexplanations\fP and
 \fBmessages\fP both kinds of explanation strings will be listed\&.  It
 will be set appropriately on entry to a completion widget and may be
 changed there\&.

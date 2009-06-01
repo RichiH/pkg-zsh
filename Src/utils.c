@@ -1174,8 +1174,6 @@ callhookfunc(char *name, LinkList lnklst, int arrayp, int *retval)
     if (arrayp) {
 	char **arrptr;
 	int namlen = strlen(name);
-#define HOOK_SUFFIX	"_functions"
-#define HOOK_SUFFIX_LEN	11	/* including NUL byte */
 	VARARR(char, arrnam, namlen + HOOK_SUFFIX_LEN);
 	memcpy(arrnam, name, namlen);
 	memcpy(arrnam + namlen, HOOK_SUFFIX, HOOK_SUFFIX_LEN);
@@ -1218,12 +1216,19 @@ preprompt(void)
 	 * Unfortunately it interacts badly with ZLE displaying message
 	 * when ^D has been pressed. So just disable PROMPT_SP logic in
 	 * this case */
+	char *eolmark = getsparam("PROMPT_EOL_MARK");
 	char *str;
-	int percents = opts[PROMPTPERCENT];
+	int percents = opts[PROMPTPERCENT], w = 0;
+	if (!eolmark || !*eolmark)
+	    eolmark = "%B%S%#%s%b";
 	opts[PROMPTPERCENT] = 1;
-	str = promptexpand("%B%S%#%s%b", 0, NULL, NULL, NULL);
+	str = promptexpand(eolmark, 1, NULL, NULL, NULL);
+	countprompt(str, &w, 0, -1);
 	opts[PROMPTPERCENT] = percents;
-	fprintf(shout, "%s%*s\r", str, (int)columns - 1 - !hasxn, "");
+	zputs(str, shout);
+	for (w = (int)columns - w - !hasxn; w > 0; w--)
+	    putc(' ', shout);
+	putc('\r', shout);
 	free(str);
     }
 
@@ -1342,9 +1347,13 @@ checkmailpath(char **s)
 		    fprintf(shout, "You have new mail.\n");
 		    fflush(shout);
 		} else {
-		    VARARR(char, usav, underscoreused);
+		    char *usav;
+		    int uusav = underscoreused;
 
-		    memcpy(usav, underscore, underscoreused);
+		    usav = zalloc(underscoreused);
+
+		    if (usav)
+			memcpy(usav, underscore, underscoreused);
 
 		    setunderscore(*s);
 
@@ -1355,7 +1364,10 @@ checkmailpath(char **s)
 			fputc('\n', shout);
 			fflush(shout);
 		    }
-		    setunderscore(usav);
+		    if (usav) {
+			setunderscore(usav);
+			zfree(usav, uusav);
+		    }
 		}
 	    }
 	    if (isset(MAILWARNING) && st.st_atime > st.st_mtime &&
@@ -1534,8 +1546,10 @@ void
 adjustwinsize(int from)
 {
     static int getwinsz = 1;
+#ifdef TIOCGWINSZ
     int ttyrows = shttyinfo.winsize.ws_row;
     int ttycols = shttyinfo.winsize.ws_col;
+#endif
     int resetzle = 0;
 
     if (getwinsz || from == 1) {
@@ -2229,12 +2243,16 @@ getquery(char *valid_chars, int purge)
 
 static int d;
 static char *guess, *best;
+static Patprog spckpat;
 
 /**/
 static void
 spscan(HashNode hn, UNUSED(int scanflags))
 {
     int nd;
+
+    if (spckpat && pattry(spckpat, hn->nam))
+	return;
 
     nd = spdist(hn->nam, guess, (int) strlen(guess) / 4 + 1);
     if (nd <= d) {
@@ -2250,7 +2268,7 @@ spscan(HashNode hn, UNUSED(int scanflags))
 mod_export void
 spckword(char **s, int hist, int cmd, int ask)
 {
-    char *t;
+    char *t, *correct_ignore;
     int x;
     char ic = '\0';
     int ne;
@@ -2286,6 +2304,14 @@ spckword(char **s, int hist, int cmd, int ask)
 	    break;
     if (**s == Tilde && !*t)
 	return;
+
+    if ((correct_ignore = getsparam("CORRECT_IGNORE")) != NULL) {
+	tokenize(correct_ignore = dupstring(correct_ignore));
+	remnulargs(correct_ignore);
+	spckpat = patcompile(correct_ignore, 0, NULL);
+    } else
+	spckpat = NULL;
+
     if (**s == String && !*t) {
 	guess = *s + 1;
 	if (itype_end(guess, IIDENT, 1) == guess)
@@ -2436,14 +2462,19 @@ ztrftime(char *buf, int bufsize, char *fmt, struct tm *tm)
      "Aug", "Sep", "Oct", "Nov", "Dec"};
 #endif
     char *origbuf = buf;
-    char tmp[3];
+    char tmp[4];
 
 
-    tmp[0] = '%';
-    tmp[2] = '\0';
     while (*fmt)
 	if (*fmt == '%') {
+	    int strip;
+
 	    fmt++;
+	    if (*fmt == '-') {
+		strip = 1;
+		fmt++;
+	    } else
+		strip = 0;
 	    /*
 	     * Assume this format will take up at least two
 	     * characters.  Not always true, but if that matters
@@ -2454,51 +2485,67 @@ ztrftime(char *buf, int bufsize, char *fmt, struct tm *tm)
 		return -1;
 	    switch (*fmt++) {
 	    case 'd':
-		*buf++ = '0' + tm->tm_mday / 10;
+		if (tm->tm_mday > 9 || !strip)
+		    *buf++ = '0' + tm->tm_mday / 10;
 		*buf++ = '0' + tm->tm_mday % 10;
 		break;
 	    case 'e':
+		strip = 1;
+		/* FALLTHROUGH */
 	    case 'f':
 		if (tm->tm_mday > 9)
 		    *buf++ = '0' + tm->tm_mday / 10;
-		else if (fmt[-1] == 'e')
+		else if (!strip)
 		    *buf++ = ' ';
 		*buf++ = '0' + tm->tm_mday % 10;
 		break;
-	    case 'k':
 	    case 'K':
+		strip = 1;
+		/* FALLTHROUGH */
+	    case 'H':
+	    case 'k':
 		if (tm->tm_hour > 9)
 		    *buf++ = '0' + tm->tm_hour / 10;
-		else if (fmt[-1] == 'k')
-		    *buf++ = ' ';
+		else if (!strip) {
+		    if (fmt[-1] == 'H')
+			*buf++ = '0';
+		    else
+			*buf++ = ' ';
+		}
 		*buf++ = '0' + tm->tm_hour % 10;
 		break;
-	    case 'l':
 	    case 'L':
+		strip = 1;
+		/* FALLTHROUGH */
+	    case 'l':
 		hr12 = tm->tm_hour % 12;
 		if (hr12 == 0)
 		    hr12 = 12;
 	        if (hr12 > 9)
 		    *buf++ = '1';
-		else if (fmt[-1] == 'l')
+		else if (!strip)
 		    *buf++ = ' ';
 
 		*buf++ = '0' + (hr12 % 10);
 		break;
 	    case 'm':
-		*buf++ = '0' + (tm->tm_mon + 1) / 10;
+		if (tm->tm_mon > 8 || !strip)
+		    *buf++ = '0' + (tm->tm_mon + 1) / 10;
 		*buf++ = '0' + (tm->tm_mon + 1) % 10;
 		break;
 	    case 'M':
-		*buf++ = '0' + tm->tm_min / 10;
+		if (tm->tm_min > 9 || !strip)
+		    *buf++ = '0' + tm->tm_min / 10;
 		*buf++ = '0' + tm->tm_min % 10;
 		break;
 	    case 'S':
-		*buf++ = '0' + tm->tm_sec / 10;
+		if (tm->tm_sec > 9 || !strip)
+		    *buf++ = '0' + tm->tm_sec / 10;
 		*buf++ = '0' + tm->tm_sec % 10;
 		break;
 	    case 'y':
-		*buf++ = '0' + (tm->tm_year / 10) % 10;
+		if (tm->tm_year > 9 || !strip)
+		    *buf++ = '0' + (tm->tm_year / 10) % 10;
 		*buf++ = '0' + tm->tm_year % 10;
 		break;
 	    case '\0':
@@ -2507,6 +2554,26 @@ ztrftime(char *buf, int bufsize, char *fmt, struct tm *tm)
 		fmt--;
 		break;
 #ifndef HAVE_STRFTIME
+	    case 'Y':
+	    {
+		/*
+		 * Not worth handling this natively if
+		 * strftime has it.
+		 */
+		int year, digits, testyear;
+		year = tm->tm_year + 1900;
+		digits = 1;
+		testyear = year;
+		while (testyear > 9) {
+		    digits++;
+		    testyear /= 10;
+		}
+		if (ztrftimebuf(&bufsize, digits))
+		    return -1;
+		sprintf(buf, "%d", year);
+		buf += digits;
+		break;
+	    }
 	    case 'a':
 		if (ztrftimebuf(&bufsize, strlen(astr[tm->tm_wday]) - 2))
 		    return -1;
@@ -2532,7 +2599,7 @@ ztrftime(char *buf, int bufsize, char *fmt, struct tm *tm)
 		 * in the accounting in bufsize (but nowhere else).
 		 */
 		*buf = '\1';
-		tmp[1] = fmt[-1];
+		sprintf(tmp, strip ? "%%-%c" : "%%%c", fmt[-1]);
 		if (!strftime(buf, bufsize + 2, tmp, tm))
 		{
 		    if (*buf) {
@@ -3048,6 +3115,7 @@ inittyptab(void)
     for (t0 = 0240; t0 != 0400; t0++)
 	typtab[t0] = IALPHA | IALNUM | IIDENT | IUSER | IWORD;
 #endif
+    /* typtab['.'] |= IIDENT; */ /* Allow '.' in variable names - broken */
     typtab['_'] = IIDENT | IUSER;
     typtab['-'] = typtab['.'] = IUSER;
     typtab[' '] |= IBLANK | INBLANK;
@@ -3094,7 +3162,7 @@ inittyptab(void)
     }
 #ifdef MULTIBYTE_SUPPORT
     set_widearray(wordchars, &wordchars_wide);
-    set_widearray(ifs, &ifs_wide);
+    set_widearray(ifs ? ifs : DEFAULT_IFS, &ifs_wide);
 #endif
     for (s = SPECCHARS; *s; s++)
 	typtab[STOUC(*s)] |= ISPECIAL;
@@ -3702,26 +3770,67 @@ metalen(const char *s, int len)
     return mlen;
 }
 
-/* This function converts a zsh internal string to a form which can be *
- * passed to a system call as a filename.  The result is stored in a   *
- * single static area.  NULL returned if the result is longer than     *
- * 4 * PATH_MAX.                                                       */
+/*
+ * This function converts a zsh internal string to a form which can be
+ * passed to a system call as a filename.  The result is stored in a
+ * single static area, sized to fit.  If there is no Meta character
+ * the original string is returned.
+ */
 
 /**/
 mod_export char *
 unmeta(const char *file_name)
 {
-    static char fn[4 * PATH_MAX];
+    static char *fn;
+    static int sz;
     char *p;
     const char *t;
+    int newsz, meta;
+    
+    meta = 0;
+    for (t = file_name; *t; t++) {
+	if (*t == Meta)
+	    meta = 1;
+    }
+    if (!meta) {
+	/*
+	 * don't need allocation... free if it's long, see below
+	 */
+	if (sz > 4 * PATH_MAX) {
+	    zfree(fn, sz);
+	    fn = NULL;
+	    sz = 0;
+	}
+	return (char *) file_name;
+    }
 
-    for (t = file_name, p = fn; *t && p < fn + 4 * PATH_MAX - 1; p++)
+    newsz = (t - file_name) + 1;
+    /*
+     * Optimisation: don't resize if we don't have to.
+     * We need a new allocation if
+     * - nothing was allocated before
+     * - the new string is larger than the old one
+     * - the old string was larger than an arbitrary limit but the
+     *   new string isn't so that we free up significant space by resizing.
+     */
+    if (!fn || newsz > sz || (sz > 4 * PATH_MAX && newsz <= 4 * PATH_MAX))
+    {
+	if (fn)
+	    zfree(fn, sz);
+	sz = newsz;
+	fn = (char *)zalloc(sz);
+	if (!fn) {
+	    sz = 0;
+	    /*
+	     * will quite likely crash in the caller anyway...
+	     */
+	    return NULL;
+	}
+    }
+
+    for (t = file_name, p = fn; *t; p++)
 	if ((*p = *t++) == Meta)
 	    *p = *t++ ^ 32;
-    if (*t)
-	return NULL;
-    if (p - fn == t - file_name)
-	return (char *) file_name;
     *p = '\0';
     return fn;
 }
@@ -5266,6 +5375,21 @@ upchdir(int n)
     return 0;
 }
 
+/*
+ * Initialize a "struct dirsav".
+ * The structure will be set to the directory we want to save
+ * the first time we change to a different directory.
+ */
+
+/**/
+mod_export void
+init_dirsav(Dirsav d)
+{
+    d->ino = d->dev = 0;
+    d->dirname = NULL;
+    d->dirfd = d->level = -1;
+}
+
 /* Change directory, without following symlinks.  Returns 0 on success, -1 *
  * on failure.  Sets errno to ENOTDIR if any symlinks are encountered.  If *
  * fchdir() fails, or the current directory is unreadable, we might end up *
@@ -5284,11 +5408,12 @@ lchdir(char const *path, struct dirsav *d, int hard)
     int err;
     struct stat st2;
 #endif
+#ifdef HAVE_FCHDIR
+    int close_dir = 0;
+#endif
 
     if (!d) {
-	ds.ino = ds.dev = 0;
-	ds.dirname = NULL;
-	ds.dirfd = -1;
+	init_dirsav(&ds);
 	d = &ds;
     }
 #ifdef HAVE_LSTAT
@@ -5298,11 +5423,7 @@ lchdir(char const *path, struct dirsav *d, int hard)
     if (*path == '/') {
 #endif
 	level = -1;
-#ifdef HAVE_FCHDIR
-	if (d->dirfd < 0 && (d->dirfd = open(".", O_RDONLY | O_NOCTTY)) < 0 &&
-	    zgetdir(d) && *d->dirname != '/')
-	    d->dirfd = open("..", O_RDONLY | O_NOCTTY);
-#else
+#ifndef HAVE_FCHDIR
 	if (!d->dirname)
 	    zgetdir(d);
 #endif
@@ -5329,19 +5450,33 @@ lchdir(char const *path, struct dirsav *d, int hard)
 	}
 	return zchdir((char *) path);
     }
+
 #ifdef HAVE_LSTAT
+#ifdef HAVE_FCHDIR
+    if (d->dirfd < 0) {
+	close_dir = 1;
+        if ((d->dirfd = open(".", O_RDONLY | O_NOCTTY)) < 0 &&
+	    zgetdir(d) && *d->dirname != '/')
+	    d->dirfd = open("..", O_RDONLY | O_NOCTTY);
+    }
+#endif
     if (*path == '/')
-	chdir("/");
+	if (chdir("/") < 0)
+	    zwarn("failed to chdir(/): %e", errno);
     for(;;) {
 	while(*path == '/')
 	    path++;
 	if(!*path) {
-	    if (d == &ds) {
+	    if (d == &ds)
 		zsfree(ds.dirname);
-		if (ds.dirfd >=0)
-		    close(ds.dirfd);
-	    } else
+	    else
 		d->level = level;
+#ifdef HAVE_FCHDIR
+	    if (d->dirfd >=0 && close_dir) {
+		close(d->dirfd);
+		d->dirfd = -1;
+	    }
+#endif
 	    return 0;
 	}
 	for(pptr = path; *++pptr && *pptr != '/'; ) ;
@@ -5376,19 +5511,50 @@ lchdir(char const *path, struct dirsav *d, int hard)
 	}
     }
     if (restoredir(d)) {
-	if (d == &ds) {
-	    zsfree(ds.dirname);
-	    if (ds.dirfd >=0)
-		close(ds.dirfd);
+	int restoreerr = errno;
+	int i;
+	/*
+	 * Failed to restore the directory.
+	 * Just be definite, cd to root and report the result.
+	 */
+	for (i = 0; i < 2; i++) {
+	    const char *cdest;
+	    if (i)
+		cdest = "/";
+	    else {
+		if (!home)
+		    continue;
+		cdest = home;
+	    }
+	    zsfree(pwd);
+	    pwd = ztrdup(cdest);
+	    if (chdir(pwd) == 0)
+		break;
 	}
+	if (i == 2)
+	    zerr("lost current directory, failed to cd to /: %e", errno);
+	else
+	    zerr("lost current directory: %e: changed to `%s'", restoreerr,
+		pwd);
+	if (d == &ds)
+	    zsfree(ds.dirname);
+#ifdef HAVE_FCHDIR
+	if (d->dirfd >=0 && close_dir) {
+	    close(d->dirfd);
+	    d->dirfd = -1;
+	}
+#endif
 	errno = err;
 	return -2;
     }
-    if (d == &ds) {
+    if (d == &ds)
 	zsfree(ds.dirname);
-	if (ds.dirfd >=0)
-	    close(ds.dirfd);
+#ifdef HAVE_FCHDIR
+    if (d->dirfd >=0 && close_dir) {
+	close(d->dirfd);
+	d->dirfd = -1;
     }
+#endif
     errno = err;
     return -1;
 #endif /* HAVE_LSTAT */

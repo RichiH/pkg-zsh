@@ -1,4 +1,4 @@
-.TH "ZSHMISC" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHMISC" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshmisc \- everything and then some
 .\" Yodl file: Zsh/grammar.yo
@@ -1129,19 +1129,21 @@ function definitions where the definition is silently discarded\&.
 .SH "SPECIAL FUNCTIONS"
 Certain functions, if defined, have special meaning to the shell\&.
 .PP
-In the case of \fBchpwd\fP, \fBperiodic\fP, \fBprecmd\fP and \fBpreexec\fP it is
-possible to define an array that has the same name with `\fB_functions\fP\&'
-appended\&.  Any element in such an array is taken as the name of a function
-to execute; it is executed in the same context and with the same arguments
-as the basic function\&.  For example, if \fB$chpwd_functions\fP is an array
-containing the values `\fBmychpwd\fP\&', `\fBchpwd_save_dirstack\fP', then the
-shell attempts to execute the functions `\fBchpwd\fP\&', `\fBmychpwd\fP' and
+.SS "Hook Functions"
+.PP
+For the functions below, it is possible to define an array that has the
+same name as the function with `\fB_functions\fP\&' appended\&.  Any element in
+such an array is taken as the name of a function to execute; it is executed
+in the same context and with the same arguments as the basic function\&.  For
+example, if \fB$chpwd_functions\fP is an array containing the values
+`\fBmychpwd\fP\&', `\fBchpwd_save_dirstack\fP', then the shell attempts to
+execute the functions `\fBchpwd\fP\&', `\fBmychpwd\fP' and
 `\fBchpwd_save_dirstack\fP\&', in that order\&.  Any function that does not exist
 is silently ignored\&.  A function found by this mechanism is referred to
-elsewhere as a `hook function\&'\&.  An error in any function causes
-subsequent functions not to be run\&.  Note further that an error
-in a \fBprecmd\fP hook causes an immediately following \fBperiodic\fP
-function not to run (thought it may run at the next opportunity)\&.
+elsewhere as a `hook function\&'\&.  An error in any function causes subsequent
+functions not to be run\&.  Note further that an error in a \fBprecmd\fP hook
+causes an immediately following \fBperiodic\fP function not to run (though
+it may run at the next opportunity)\&.
 .PP
 .PD 0
 .TP
@@ -1210,7 +1212,15 @@ Executed at the point where the main shell is about to exit normally\&.
 This is not called by exiting subshells, nor when the \fBexec\fP
 precommand modifier is used before an external command\&.  Also, unlike
 \fBTRAPEXIT\fP, it is not called when functions exit\&.
+.PP
+.SS "Trap Functions"
+.PP
+The functions below are treated specially but do not have corresponding
+hook arrays\&.
+.PP
+.PD 0
 .TP
+.PD
 \fBTRAP\fP\fINAL\fP
 If defined and non\-null,
 this function will be executed whenever the shell
@@ -1793,6 +1803,8 @@ true if \fIstring\fP matches the regular expression
 \fIregexp\fP is tested as a PCRE regular expression using
 the \fBzsh/pcre\fP module, else it is tested as a POSIX
 extended regular expression using the \fBzsh/regex\fP module\&.
+Upon successful match, some variables will be updated; no variables
+are changed if the matching fails\&.
 If the option \fBBASH_REMATCH\fP is set the array
 \fBBASH_REMATCH\fP is set to the substring that matched the pattern
 followed by the substrings that matched parenthesised
@@ -2047,11 +2059,32 @@ The date in \fImm\fP\fB/\fP\fIdd\fP\fB/\fP\fIyy\fP format\&.
 .TP
 \fB%D{\fP\fIstring\fP\fB}\fP
 \fIstring\fP is formatted using the \fBstrftime\fP function\&.
-See \fIstrftime\fP(3) for more details\&.  Three additional codes are
-available:  \fB%f\fP prints the day of the month, like \fB%e\fP but
-without any preceding space if the day is a single digit, and
-\fB%K\fP/\fB%L\fP correspond to \fB%k\fP/\fB%l\fP for the hour of the day
-(24/12 hour clock) in the same way\&.
+See \fIstrftime\fP(3) for more details\&.  Various zsh
+extensions provide numbers with no leading zero or space
+if the number is a single digit:
+.RS
+.PP
+.PD 0
+.TP
+\fB%f\fP
+a day of the month
+.TP
+\fB%K\fP
+the hour of the day on the 24\-hour clock
+.TP
+\fB%L\fP
+the hour of the day on the 12\-hour clock
+.PD
+.PP
+The GNU extension that a `\fB\-\fP\&' between the \fB%\fP and the
+format character causes a leading zero or space to be stripped
+is handled directly by the shell for the format characters \fBd\fP, \fBf\fP,
+\fBH\fP, \fBk\fP, \fBl\fP, \fBm\fP, \fBM\fP, \fBS\fP and \fBy\fP; any other format
+characters are provided to \fBstrftime()\fP with any leading `\fB\-\fP\&',
+present, so the handling is system dependent\&.  Further GNU
+extensions are not supported at present\&.
+.RE
+.RE
 .PP
 .SS "Visual effects"
 .PD 0

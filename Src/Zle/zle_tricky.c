@@ -2286,7 +2286,7 @@ printfmt(char *fmt, int n, int dopr, int doesc)
 		case 'n':
 		    sprintf(nc, "%d", n);
 		    if (dopr)
-			fprintf(shout, nc);
+			fputs(nc, shout);
 		    cc += MB_METASTRWIDTH(nc);
 		    break;
 		case 'B':
@@ -2799,8 +2799,7 @@ processcmd(UNUSED(char **args))
     char *s;
     int m = zmult, na = noaliases;
 
-    if (!strcmp(bindk->nam, "which-command"))
-	noaliases = 1;
+    noaliases = 1;
     s = getcurcmd();
     noaliases = na;
     if (!s)

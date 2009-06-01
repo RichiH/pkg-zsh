@@ -131,6 +131,11 @@ ksh autoloading behaviour on the first call to the function.
 With the tt(-w) flag, the var(name)s are taken as names of files compiled
 with the tt(zcompile) builtin, and all functions defined in them are
 marked for autoloading.
+
+The flags tt(-z) and tt(-k) mark the function to be autoloaded in
+native or ksh emulation, as if the option tt(KSH_AUTOLOAD) were
+unset or were set, respectively.  The flags override the setting of
+the option at the time the function is loaded.
 )
 findex(bg)
 cindex(jobs, backgrounding)
@@ -338,8 +343,11 @@ cindex(compatibility, csh)
 cindex(sh, compatibility)
 cindex(ksh, compatibility)
 cindex(csh, compatibility)
-item(tt(emulate) [ tt(-LR) ] {tt(zsh)|tt(sh)|tt(ksh)|tt(csh)})(
-Set up zsh options to emulate the specified shell as much as possible.
+item(tt(emulate) [ tt(-LR) ] [ {tt(zsh)|tt(sh)|tt(ksh)|tt(csh)} [ tt(-c) tt(arg) ] ])(
+Without any argument print current emulation mode.
+
+With single argument set up zsh options to emulate the specified shell
+as much as possible.
 bf(csh) will never be fully emulated.
 If the argument is not one of the shells listed above, tt(zsh)
 will be used as a default; more precisely, the tests performed on the
@@ -351,16 +359,74 @@ the section `Compatibility' in zmanref(zshmisc)
 ifnzman(\
 noderef(Compatibility)
 )\
-.  If the tt(-R) option is given, all options
+.
+
+If the tt(-R) option is given, all options
 are reset to their default value corresponding to the specified emulation
 mode, except for certain options describing the interactive
 environment; otherwise, only those options likely to cause portability
-problems in scripts and functions are altered.  If the tt(-L) option
-is given, the options tt(LOCAL_OPTIONS) and tt(LOCAL_TRAPS) will be set as
+problems in scripts and functions are altered.  If the tt(-L) option is given,
+the options tt(LOCAL_OPTIONS) and tt(LOCAL_TRAPS) will be set as
 well, causing the effects of the tt(emulate) command and any tt(setopt) and
 tt(trap) commands to be local to the immediately surrounding shell
 function, if any; normally these options are turned off in all emulation
-modes except tt(ksh).
+modes except tt(ksh). The tt(-L) and tt(-c) are mutually exclusive.
+
+If tt(-c) tt(arg) is given, evaluate tt(arg) while the requested
+emulation is temporarily in effect.  The emulation and all options will
+be restored to their original values before tt(emulate) returns.  The
+tt(-R) flag may be used.
+
+Use of tt(-c) enables `sticky' emulation mode for functions defined
+within the evaluated expression:  the emulation mode is associated
+thereafter with the function so that whenever the function is executed
+the emulation (respecting the tt(-R) flag, if present) and all
+options are set before entry to the function, and restored after exit.
+If the function is called when the sticky emulation is already in
+effect, either within an `tt(emulate) var(shell) tt(-c)' expression or
+within another function with the same sticky emulation, entry and exit
+from the function do not cause options to be altered (except due to
+standard processing such as the tt(LOCAL_OPTIONS) option).
+
+For example:
+
+example(emulate sh -c 'fni+LPAR()RPAR() { setopt cshnullglob; }
+fno+LPAR()RPAR() { fni; }'
+fno
+)
+
+The two functions tt(fni) and tt(fno) are defined with sticky tt(sh)
+emulation.  tt(fno) is then executed, causing options associated
+with emulations to be set to their values in tt(sh).  tt(fni) then
+calls tt(fno); because tt(fno) is also marked for sticky tt(sh)
+emulation, no option changes take place on entry to or exit from it.
+Hence the option tt(cshnullglob), turned off by tt(sh) emulation, will
+be turned on within tt(fni) and remain on on return to tt(fno).  On exit
+from tt(fno), the emulation mode and all options will be restored to the
+state they were in before entry to the temporary emulation.
+
+The documentation above is typically sufficient for the intended
+purpose of executing code designed for other shells in a suitable
+environment.  More detailed rules follow.
+startsitem()
+sitem(1.)(The sticky emulation environment provided by `tt(emulate)
+var(shell) tt(-c)' is identical to that provided by entry to
+a function marked for sticky emulation as a consequence of being
+defined in such an environment.  Hence, for example, the sticky
+emulation is inherited by subfunctions defined within functions
+with sticky emulation.)
+sitem(2.)(No change of options takes place on entry to or exit from
+functions that are not marked for sticky emulation, other than those
+that would normally take place, even if those functions are called
+within sticky emulation.)
+sitem(3.)(No special handling is provided for functions marked for
+tt(autoload) nor for functions present in wordcode created by
+the tt(zcompile) command.)
+sitem(4.)(The presence or absence of the tt(-R) flag to tt(emulate)
+corresponds to different sticky emulation modes, so for example
+`tt(emulate sh -c)', `tt(emulate -R sh -c)' and `tt(emulate csh -c)'
+are treated as three distinct sticky emulations.)
+endsitem()
 )
 findex(enable)
 cindex(enabling commands)
@@ -418,7 +484,9 @@ Do nothing and return an exit status of 1.
 findex(fc)
 cindex(history, editing)
 cindex(editing history)
-xitem(tt(fc) [ tt(-e) var(ename) ] [ tt(-nlrdDfEim) ] [ var(old)tt(=)var(new) ... ] [ var(first) [ var(last) ] ])
+xitem(tt(fc) [ tt(-e) var(ename) ] [ tt(-m) var(match) ] [ var(old)tt(=)var(new) ... ] [ var(first) [ var(last) ] ])
+xitem(tt(fc) tt(-l) [ tt(-nrdfEiD) ] [ tt(-t) var(timefmt) ] [ tt(-m) var(match) ])
+xitem(      [ var(old)tt(=)var(new) ... ] [ var(first) [ var(last) ] ])
 xitem(tt(fc) tt(-p) [ tt(-a) ] [ var(filename) [ var(histsize) [ var(savehistsize) ] ] ])
 xitem(tt(fc) tt(-P))
 item(tt(fc) tt(-ARWI) [ var(filename) ])(
@@ -451,13 +519,26 @@ or to -1 if the tt(-l) flag is given.
 
 The flag tt(-r) reverses the order of the commands and the
 flag tt(-n) suppresses command numbers when listing.
-Also when listing, tt(-d) prints timestamps for each command, and
-tt(-f) prints full time-date stamps.  Adding the tt(-E) flag
-causes the dates to be printed as `var(dd)tt(.)var(mm)tt(.)var(yyyy)',
-instead of the default `var(mm)tt(/)var(dd)tt(/)var(yyyy)'.
-Adding the tt(-i) flag causes the dates to be printed in ISO8601
-`var(yyyy)tt(-)var(mm)tt(-)var(dd)' format.
-With the tt(-D) flag, tt(fc) prints elapsed times.
+
+Also when listing,
+startsitem()
+sitem(tt(-d))(prints timestamps for each command)
+sitem(tt(-f))(prints full time-date stamps in the US
+`var(MM)tt(/)var(DD)tt(/)var(YY) var(hh):var(mm)' format)
+sitem(tt(-E))(prints full time-date stamps in the European
+`var(dd)tt(.)var(mm)tt(.)var(yyyy) var(hh):var(mm)' format)
+sitem(tt(-i))(prints full time-date stamps in ISO8601
+`var(yyyy)tt(-)var(mm)tt(-)var(dd) var(hh):var(mm)' format)
+sitem(tt(-t) var(fmt))(prints time and date stamps in the given format;
+var(fmt) is formatted with the strftime function with the zsh extensions
+described for the tt(%D{)var(string)tt(}) prompt format in
+ifzman(the section EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
+ifnzman(noderef(Prompt Expansion)).  The resulting formatted string must be
+no more than 256 characters or will not be printed.
+)
+sitem(tt(-D))(prints elapsed times; may be combined with one of the
+options above.)
+endsitem()
 
 cindex(history, stack)
 cindex(stack, history)
@@ -889,7 +970,7 @@ Print the arguments to the input of the coprocess.
 )
 item(tt(-P))(
 Perform prompt expansion (see
-ifzman(zmanref(zshmisc))\
+ifzman(EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
 ifnzman(noderef(Prompt Expansion))\
 ).
 )
@@ -1130,7 +1211,7 @@ alias(rehash)(hash -r)
 findex(return)
 cindex(functions, returning from)
 item(tt(return) [ var(n) ])(
-Causes a shell function or tt(.) script to return to
+Causes a shell function or `tt(.)' script to return to
 the invoking script with the return status specified by var(n).  If var(n)
 is omitted, the return status is that of the last command
 executed.
@@ -1237,7 +1318,7 @@ shifted instead of the positional parameters.
 )
 findex(source)
 item(tt(source) var(file) [ var(arg) ... ])(
-Same as tt(.), except that the current directory is always searched and
+Same as `tt(.)', except that the current directory is always searched and
 is always searched first, before directories in tt($path).
 )
 module(stat)(zsh/stat)

@@ -167,9 +167,10 @@ zlecharasstring(ZLE_CHAR_T inchar, char *buf)
  * instead of wide characters where appropriate and with the contents
  * metafied.
  *
- * If outll is non-NULL, assign the new length.  If outcs is non-NULL,
- * assign the new character position.  This is the conventional string
- * length, without the NULL byte.
+ * If outllp is non-NULL, assign the new length.  This is the conventional
+ * string length, without the NULL byte.
+ *
+ * If outcsp is non-NULL, assign the new character position.
  *
  * If useheap is 1, memory is returned from the heap, else is allocated
  * for later freeing.
@@ -545,7 +546,7 @@ cuttext(ZLE_STRING_T line, int ct, int flags)
 	cutbuf.buf = (ZLE_STRING_T)zalloc(ZLE_CHAR_SIZE);
 	cutbuf.buf[0] = ZWC('\0');
 	cutbuf.len = cutbuf.flags = 0;
-    } else if (!(lastcmd & ZLE_KILL) || (flags & CUT_RAW)) {
+    } else if (!(lastcmd & ZLE_KILL) || (flags & CUT_REPLACE)) {
 	Cutbuffer kptr;
 	if (!kring) {
 	    kringsize = KRINGCTDEF;

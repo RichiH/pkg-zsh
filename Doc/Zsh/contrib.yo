@@ -362,11 +362,14 @@ zstyle ':vcs_info:*' formats       \
     '%F{5}(%f%s%F{5})%F{3}-%F{5}[%F{2}%b%F{5}]%f '
 zstyle ':vcs_info:(sv[nk]|bzr):*' branchformat '%b%F{1}:%F{3}%r'
 precmd () { vcs_info }
-PS1='%F{5}[%F{2}%n%F{5}] %F{3}%3~ ${vcs_info_msg_0_}'"%f%# ')
+PS1='%F{5}[%F{2}%n%F{5}] %F{3}%3~ ${vcs_info_msg_0_}%f%# ')
 
 Obviously, the last two lines are there for demonstration: You need to
 call var(vcs_info) from your var(precmd) function. Once that is done you need
 a tt(single quoted) var('${vcs_info_msg_0_}') in your prompt.
+
+To be able to use var('${vcs_info_msg_0_}') directly in your prompt like
+this, you will need to have the tt(PROMPT_SUBST) option enabled.
 
 Now call the tt(vcs_info_printsys) utility from the command line:
 
@@ -483,6 +486,13 @@ want var(vcs_info) to completely take over the generation of your prompt.
 You would do something like tt(PS1='${vcs_info_msg_0_}') to accomplish
 that.
 )
+kindex(stgitformat)
+item(tt(stgitformat))(
+The tt(git) backend replaces var(%m) in the formats and
+actionformats styles with tt(stgit)-specific information for
+tt(stgit)-initialized branches. This style let's you modify how that string
+should look like.
+)
 kindex(max-exports)
 item(tt(max-exports))(
 Defines the maximum number if
@@ -502,6 +512,56 @@ item(tt(disable))(
 A list of VCSs, you don't want var(vcs_info) to test for
 repositories (checked in the var(-init-) context, too). Only used if
 tt(enable) contains tt(ALL).
+)
+kindex(disable-patterns)
+item(tt(disable-patterns))(
+A list of patterns that are checked against tt($PWD). If a pattern
+matches, var(vcs_info) will be disabled. This style is checked in the
+var(:vcs_info:-init-:*:-all-) context.
+
+Say, tt(~/.zsh) is a directory under version control, in which you do
+not want var(vcs_info) to be active, do:
+example(zstyle ':vcs_info:*' disable-patterns "$HOME/.zsh+LPAR()|/*+RPAR()")
+)
+kindex(check-for-changes)
+item(tt(check-for-changes))(
+If enabled, this style (currently only used by the tt(git) backend) causes the
+tt(%c) and tt(%u) format escapes to be filled with information. The strings
+filled into these escapes can be controlled via the var(stagedstr) and
+var(unstagedstr) styles.
+
+Note, that the actions taken if this style is enabled are potentially expensive
+(read: they take time, depending on how big the current repository is).
+Therefore, it is disabled by default.
+)
+kindex(stagedstr)
+item(tt(stagedstr))(
+This string will be used in the tt(%c) escape if there are staged changes in
+the repository.
+)
+kindex(unstagedstr)
+item(tt(unstagedstr))(
+This string will be used in the tt(%u) escape if there are unstaged changes in
+the repository.
+)
+kindex(command)
+item(tt(command))(
+This style causes var(vcs_info) to use the supplied string as the command
+to use as the vcs's binary. Note, that setting this in ':vcs_info:*' is
+not a good idea.
+
+If the value of this style is empty (which is the default), the used binary
+name is the name of the backend in use (e.g. var(svn) is used in a var(svn)
+repository).
+
+The var(repo-root-name) part in the context is always the default tt(-all-)
+when this style is looked up.
+
+For example, this style can be used to use binaries from non-default
+installation directories. Assume, var(git) is installed in /usr/bin, but
+your sysadmin installed a newer version in /usr/bin/local. Now, instead of
+changing the order of your tt($PATH) parameter, you can do this:
+example(zstyle ':vcs_info:git:*:-all-' command /usr/local/bin/git)
 )
 kindex(use-server)
 item(tt(use-server))(
@@ -526,6 +586,17 @@ the default is to use the not-that-simple code, which is potentially a lot
 slower but might be more accurate in all possible cases. This style is only
 used by the tt(bzr) backend.
 )
+kindex(get-revision)
+item(tt(get-revision))(
+If set to true, vcs_info goes the extra mile to figure out the revision of
+a repository's work tree (currently for the tt(git) and tt(hg) backends,
+where this kind of information is not always vital). For tt(git), the
+hash value of the currently checked out commit is available via the tt(%i)
+expansion. With tt(hg), the local revision number is available via tt(%i)
+and the corresponding global hash is available via tt(%m).
+If this style is set in the tt(hg) context, the backend supports the
+branchformat style.
+)
 kindex(use-prompt-escapes)
 item(tt(use-prompt-escapes))(
 Determines if we assume that the assembled
@@ -541,10 +612,18 @@ sitem(tt(formats))(" (%s)-[%b|%a]-")
 sitem(tt(actionformats))(" (%s)-[%b]-")
 sitem(tt(branchformat))("%b:%r" (for bzr, svn and svk))
 sitem(tt(nvcsformats))("")
+sitem(tt(stgitformat))(" %p (%c)")
 sitem(tt(max-exports))(2)
 sitem(tt(enable))(ALL)
 sitem(tt(disable))((empty list))
+sitem(tt(disable-patterns))((empty list))
+sitem(tt(check-for-changes))(false)
+sitem(tt(stagedstr))((string: "S"))
+sitem(tt(unstagedstr))((string: "U"))
+sitem(tt(command))((empty string))
+sitem(tt(use-server))(false)
 sitem(tt(use-simple))(false)
+sitem(tt(get-revision))(false)
 sitem(tt(use-prompt-escapes))(true)
 endsitem()
 
@@ -556,11 +635,21 @@ sitem(tt(%s))(The vcs in use (git, hg, svn etc.))
 sitem(tt(%b))(Information about the current branch.)
 sitem(tt(%a))(An identifier, that describes the action. Only makes sense in
 actionformats.)
+sitem(tt(%i))(The current revision number or identifier.)
+sitem(tt(%c))(The string from the var(stagedstr) style if there are staged
+changes in the repository.)
+sitem(tt(%u))(The string from the var(unstagedstr) style if there are unstaged
+changes in the repository.)
 sitem(tt(%R))(base directory of the repository.)
 sitem(tt(%r))(repository name. If tt(%R) is var(/foo/bar/repoXY), tt(%r) is
 var(repoXY).)
 sitem(tt(%S))(subdirectory within a repository. If tt($PWD) is
 var(/foo/bar/reposXY/beer/tasty), tt(%S) is var(beer/tasty).)
+sitem(tt(%m))(A "misc" replacement. It is at the discretion of the backend
+to decide what this replacement expands to. It is currently used by
+the tt(hg) and tt(git) backends. The tt(hg) backend replaces tt(%m) with the
+global hash value of the current revision and the tt(git) backend replaces it
+with the string from the var(stgitformat) style.)
 endsitem()
 
 In tt(branchformat) these replacements are done:
@@ -568,6 +657,13 @@ In tt(branchformat) these replacements are done:
 startsitem()
 sitem(tt(%b))(the branch name)
 sitem(tt(%r))(the current revision number)
+endsitem()
+
+In tt(stgitformat) these replacements are done:
+
+startsitem()
+sitem(tt(%p))(the name of the patch currently on top of the stack)
+sitem(tt(%c))(the number of unapplied patches)
 endsitem()
 
 Not all vcs backends have to support all replacements. For tt(nvcsformats)
@@ -1887,6 +1983,10 @@ user.
 The system works by setting up suffix aliases with `tt(alias -s)'.
 Suffix aliases already installed by the user will not be overwritten.
 
+For suffixes defined in lower case, upper case variants will also
+automatically be handled (e.g. tt(PDF) is automatically handled if
+handling for the suffix tt(pdf) is defined), but not vice versa.
+
 Repeated calls to tt(zsh-mime-setup) do not override the existing
 mapping between suffixes and executable files unless the option tt(-f)
 is given.  Note, however, that this does not override existing suffix
@@ -2287,7 +2387,7 @@ enditem()
 See the comments in the function for a few extra tips.
 )
 findex(zmathfuncdef)
-item(tt(zmathfuncdef) var(mathfunc) [ var(body) ])(
+item(tt(zmathfuncdef) [ var(mathfunc) [ var(body) ] ])(
 A convenient front end to tt(functions -M).
 
 With two arguments, define a mathematical function named var(mathfunc)
@@ -2299,10 +2399,15 @@ to refer to optional parameters.  Note that the forms must be
 strictly adhered to for the function to calculate the correct number
 of arguments.  The implementation is held in a shell function named
 tt(zsh_math_func_)var(mathfunc); usually the user will not need
-to refer to the shell function directly.
+to refer to the shell function directly.  Any existing function
+of the same name is silently replaced.
 
 With one argument, remove the mathematical function var(mathfunc)
 as well as the shell function implementation.
+
+With no arguments, list all var(mathfunc) functions in a form
+suitable for restoring the definition.
+The functions have not necessarily been defined by tt(zmathfuncdef).
 )
 enditem()
 
@@ -2733,7 +2838,7 @@ The tt(nslookup) function looks up this style in the context
 `tt(:nslookup)' to set the prompt and the right-side prompt, respectively.
 The usual expansions for the tt(PS1) and tt(RPS1) parameters may be used
 (see
-ifzman(zmanref(zshmisc))\
+ifzman(EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
 ifnzman(noderef(Prompt Expansion))\
 ).
 )

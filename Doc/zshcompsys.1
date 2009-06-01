@@ -1,4 +1,4 @@
-.TH "ZSHCOMPSYS" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHCOMPSYS" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshcompsys \- zsh completion system
 .\" Yodl file: Zsh/compsys.yo
@@ -186,6 +186,12 @@ passed as arguments; if none are given, \fBcompaudit\fP uses \fBfpath\fP and
 to \fBfpath\fP as necessary\&.  To force a check of exactly the directories
 currently named in \fBfpath\fP, set \fB_compdir\fP to an empty string before
 calling \fBcompaudit\fP or \fBcompinit\fP\&.
+.PP
+The function \fBbashcompinit\fP compatibility with bash\&'s programmable
+completion system\&.  When run it will define the functions, \fBcompgen\fP and
+\fBcomplete\fP which correspond to the bash builtins with the same names\&.
+It will then be possible to use completion specifications and functions
+written for bash\&.
 .PP
 .SS "Autoloaded files"
 .PP
@@ -1515,7 +1521,8 @@ string to display above matches in completion lists\&.  The sequence
 `\fB%d\fP\&' in this string will be replaced with a short description of
 what these matches are\&.  This string may also contain the following
 sequences to specify output attributes,
-as described in the section PROMPT EXPANSION in \fIzshmisc\fP(1):
+as described in the section EXPANSION OF PROMPT SEQUENCES in
+\fIzshmisc\fP(1):
 `\fB%B\fP\&', `\fB%S\fP', `\fB%U\fP', `\fB%F\fP', `\fB%K\fP' and their lower case
 counterparts, as well as `\fB%{\fP\&.\&.\&.\fB%}\fP\&'\&.  `\fB%F\fP', `\fB%K\fP' and
 `\fB%{\fP\&.\&.\&.\fB%}\fP\&' take arguments in the same form as prompt
@@ -3141,12 +3148,41 @@ be moved to the end of the current word before the completion code is
 called and hence there will be no suffix\&.
 .RE
 .TP
-\fBbashcompinit\fP
-This function provides compatibility with bash\&'s programmable completion
-system\&.  When run it will define the functions, \fBcompgen\fP and
-\fBcomplete\fP which correspond to the bash builtins with the same names\&.
-It will then be possible to use completion specifications and functions
-written for bash\&.
+\fB_user_expand\fP
+This completer behaves similarly to the \fB_expand\fP completer but
+instead performs expansions defined by users\&.  The styles \fBadd\-space\fP and
+\fBsort\fP styles specific to the \fB_expand\fP completer are usable with
+\fB_user_expand\fP in addition to other styles handled more generally by
+the completion system\&.  The tag \fBall\-expansions\fP is also available\&.
+.RS
+.PP
+The expansion depends on the array style \fBuser\-expand\fP being defined
+for the current context; remember that the context for completers is less
+specific than that for contextual completion as the full context has not
+yet been determined\&.  Elements of the array may have one of the following
+forms:
+.PD 0
+.TP
+\fB$\fP\fIhash\fP
+
+\fIhash\fP is the name of an associative array\&.  Note this is not a full
+parameter expression, merely a \fB$\fP, suitably quoted to prevent immediate
+expansion, followed by the name of an associative array\&.  If the trial
+expansion word matches a key in \fIhash\fP, the resulting expansion is the
+corresponding value\&.
+.PP
+.TP
+\fI_func\fP
+
+\fI_func\fP is the name of a shell function whose name must begin with
+\fB_\fP but is not otherwise special to the completion system\&.  The function
+is called with the trial word as an argument\&.  If the word is to be
+expanded, the function should set the array \fBreply\fP to a list of
+expansions\&.  The return status of the function is irrelevant\&.
+.PP
+.PD
+.RE
+.RE
 .PP
 .SH "BINDABLE COMMANDS"
 .PP
@@ -4150,7 +4186,8 @@ The \fIdescr\fP is taken as a string to display above the matches if the
 \fBformat\fP style for the \fBdescriptions\fP tag is set\&.  This is followed by
 one or two names of arrays followed by options to pass to \fBcompadd\fP\&.  The
 first array contains the possible completions with their descriptions in
-the form `\fIcompletion\fP\fB:\fP\fIdescription\fP\&'\&.  If a second array is
+the form `\fIcompletion\fP\fB:\fP\fIdescription\fP\&'\&.  Any literal colons in
+\fIcompletion\fP must be quoted with a backslash\&.  If a second array is
 given, it should have the same number of elements as the first; in this
 case the corresponding elements are added as possible completions instead
 of the \fIcompletion\fP strings from the first array\&.  The completion list
@@ -4464,7 +4501,7 @@ generally used by the completion system\&.
 This is used to complete the names of shell parameters\&.
 .RS
 .PP
-The option `\fB\-g \fIpattern\fP\fP\&' limits the completion to parameters
+The option `\fB\-g\fP \fIpattern\fP\&' limits the completion to parameters
 whose type matches the \fIpattern\fP\&.  The type of a parameter is that
 shown by `\fBprint ${(t)\fP\fIparam\fP\fB}\fP\&', hence judicious use of
 `\fB*\fP\&' in \fIpattern\fP is probably necessary\&.

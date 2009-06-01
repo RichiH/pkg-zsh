@@ -1,4 +1,4 @@
-.TH "ZSHCONTRIB" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHCONTRIB" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshcontrib \- user contributions to zsh
 .\" Yodl file: Zsh/contrib.yo
@@ -44,7 +44,7 @@ distribution in your home directory, you would use the commands:
 \fBmkdir ~/zsh_help
 cd ~/zsh_help
 man zshall | colcrt \- | \e 
-perl ~/zsh\-4\&.3\&.9/Util/helpfiles\fP
+perl ~/zsh\-4\&.3\&.10/Util/helpfiles\fP
 .fi
 .RE
 .PP
@@ -179,7 +179,7 @@ Run \fBzkbd\fP either as an autoloaded function, or as a shell script:
 .PP
 .RS
 .nf
-\fBzsh \-f ~/zsh\-4\&.3\&.9/Functions/Misc/zkbd\fP
+\fBzsh \-f ~/zsh\-4\&.3\&.10/Functions/Misc/zkbd\fP
 .fi
 .RE
 .PP
@@ -235,7 +235,7 @@ command and redirect the output into a file:
 .PP
 .RS
 .nf
-\fB\&. ~/zsh\-4\&.3\&.9/Util/reporter > zsh\&.report\fP
+\fB\&. ~/zsh\-4\&.3\&.10/Util/reporter > zsh\&.report\fP
 .fi
 .RE
 .PP
@@ -413,13 +413,16 @@ zstyle \&':vcs_info:*' formats       \e
     \&'%F{5}(%f%s%F{5})%F{3}\-%F{5}[%F{2}%b%F{5}]%f '
 zstyle \&':vcs_info:(sv[nk]|bzr):*' branchformat '%b%F{1}:%F{3}%r'
 precmd () { vcs_info }
-PS1=\&'%F{5}[%F{2}%n%F{5}] %F{3}%3~ ${vcs_info_msg_0_}'"%f%# '\fP
+PS1=\&'%F{5}[%F{2}%n%F{5}] %F{3}%3~ ${vcs_info_msg_0_}%f%# '\fP
 .fi
 .RE
 .PP
 Obviously, the last two lines are there for demonstration: You need to
 call \fIvcs_info\fP from your \fIprecmd\fP function\&. Once that is done you need
 a \fBsingle quoted\fP \fI\&'${vcs_info_msg_0_}'\fP in your prompt\&.
+.PP
+To be able to use \fI\&'${vcs_info_msg_0_}'\fP directly in your prompt like
+this, you will need to have the \fBPROMPT_SUBST\fP option enabled\&.
 .PP
 Now call the \fBvcs_info_printsys\fP utility from the command line:
 .PP
@@ -554,6 +557,12 @@ want \fIvcs_info\fP to completely take over the generation of your prompt\&.
 You would do something like \fBPS1=\&'${vcs_info_msg_0_}'\fP to accomplish
 that\&.
 .TP
+\fBstgitformat\fP
+The \fBgit\fP backend replaces \fI%m\fP in the formats and
+actionformats styles with \fBstgit\fP\-specific information for
+\fBstgit\fP\-initialized branches\&. This style let\&'s you modify how that string
+should look like\&.
+.TP
 \fBmax\-exports\fP
 Defines the maximum number if
 \fIvcs_info_msg_*_\fP variables \fIvcs_info\fP will export\&.
@@ -570,6 +579,65 @@ contains \fBALL\fP \fIvcs_info\fP will use all backends known to it\&. Only with
 A list of VCSs, you don\&'t want \fIvcs_info\fP to test for
 repositories (checked in the \fI\-init\-\fP context, too)\&. Only used if
 \fBenable\fP contains \fBALL\fP\&.
+.TP
+\fBdisable\-patterns\fP
+A list of patterns that are checked against \fB$PWD\fP\&. If a pattern
+matches, \fIvcs_info\fP will be disabled\&. This style is checked in the
+\fI:vcs_info:\-init\-:*:\-all\-\fP context\&.
+.RS
+.PP
+Say, \fB~/\&.zsh\fP is a directory under version control, in which you do
+not want \fIvcs_info\fP to be active, do:
+.RS
+.nf
+\fBzstyle \&':vcs_info:*' disable\-patterns "$HOME/\&.zsh(|/*)"\fP
+.fi
+.RE
+.RE
+.TP
+\fBcheck\-for\-changes\fP
+If enabled, this style (currently only used by the \fBgit\fP backend) causes the
+\fB%c\fP and \fB%u\fP format escapes to be filled with information\&. The strings
+filled into these escapes can be controlled via the \fIstagedstr\fP and
+\fIunstagedstr\fP styles\&.
+.RS
+.PP
+Note, that the actions taken if this style is enabled are potentially expensive
+(read: they take time, depending on how big the current repository is)\&.
+Therefore, it is disabled by default\&.
+.RE
+.TP
+\fBstagedstr\fP
+This string will be used in the \fB%c\fP escape if there are staged changes in
+the repository\&.
+.TP
+\fBunstagedstr\fP
+This string will be used in the \fB%u\fP escape if there are unstaged changes in
+the repository\&.
+.TP
+\fBcommand\fP
+This style causes \fIvcs_info\fP to use the supplied string as the command
+to use as the vcs\&'s binary\&. Note, that setting this in ':vcs_info:*' is
+not a good idea\&.
+.RS
+.PP
+If the value of this style is empty (which is the default), the used binary
+name is the name of the backend in use (e\&.g\&. \fIsvn\fP is used in a \fIsvn\fP
+repository)\&.
+.PP
+The \fIrepo\-root\-name\fP part in the context is always the default \fB\-all\-\fP
+when this style is looked up\&.
+.PP
+For example, this style can be used to use binaries from non\-default
+installation directories\&. Assume, \fIgit\fP is installed in /usr/bin, but
+your sysadmin installed a newer version in /usr/bin/local\&. Now, instead of
+changing the order of your \fB$PATH\fP parameter, you can do this:
+.RS
+.nf
+\fBzstyle \&':vcs_info:git:*:\-all\-' command /usr/local/bin/git\fP
+.fi
+.RE
+.RE
 .TP
 \fBuse\-server\fP
 This is used by the Perforce backend (\fBp4\fP) to decide if it should
@@ -592,6 +660,16 @@ the default is to use the not\-that\-simple code, which is potentially a lot
 slower but might be more accurate in all possible cases\&. This style is only
 used by the \fBbzr\fP backend\&.
 .TP
+\fBget\-revision\fP
+If set to true, vcs_info goes the extra mile to figure out the revision of
+a repository\&'s work tree (currently for the \fBgit\fP and \fBhg\fP backends,
+where this kind of information is not always vital)\&. For \fBgit\fP, the
+hash value of the currently checked out commit is available via the \fB%i\fP
+expansion\&. With \fBhg\fP, the local revision number is available via \fB%i\fP
+and the corresponding global hash is available via \fB%m\fP\&.
+If this style is set in the \fBhg\fP context, the backend supports the
+branchformat style\&.
+.TP
 \fBuse\-prompt\-escapes\fP
 Determines if we assume that the assembled
 string from \fIvcs_info\fP includes prompt escapes\&. (Used by
@@ -613,6 +691,9 @@ The default values for these styles in all contexts are:
 \fBnvcsformats\fP
 ""
 .TP
+\fBstgitformat\fP
+" %p (%c)"
+.TP
 \fBmax\-exports\fP
 2
 .TP
@@ -622,7 +703,28 @@ ALL
 \fBdisable\fP
 (empty list)
 .TP
+\fBdisable\-patterns\fP
+(empty list)
+.TP
+\fBcheck\-for\-changes\fP
+false
+.TP
+\fBstagedstr\fP
+(string: "S")
+.TP
+\fBunstagedstr\fP
+(string: "U")
+.TP
+\fBcommand\fP
+(empty string)
+.TP
+\fBuse\-server\fP
+false
+.TP
 \fBuse\-simple\fP
+false
+.TP
+\fBget\-revision\fP
 false
 .TP
 \fBuse\-prompt\-escapes\fP
@@ -644,6 +746,17 @@ Information about the current branch\&.
 An identifier, that describes the action\&. Only makes sense in
 actionformats\&.
 .TP
+\fB%i\fP
+The current revision number or identifier\&.
+.TP
+\fB%c\fP
+The string from the \fIstagedstr\fP style if there are staged
+changes in the repository\&.
+.TP
+\fB%u\fP
+The string from the \fIunstagedstr\fP style if there are unstaged
+changes in the repository\&.
+.TP
 \fB%R\fP
 base directory of the repository\&.
 .TP
@@ -654,6 +767,13 @@ repository name\&. If \fB%R\fP is \fI/foo/bar/repoXY\fP, \fB%r\fP is
 \fB%S\fP
 subdirectory within a repository\&. If \fB$PWD\fP is
 \fI/foo/bar/reposXY/beer/tasty\fP, \fB%S\fP is \fIbeer/tasty\fP\&.
+.TP
+\fB%m\fP
+A "misc" replacement\&. It is at the discretion of the backend
+to decide what this replacement expands to\&. It is currently used by
+the \fBhg\fP and \fBgit\fP backends\&. The \fBhg\fP backend replaces \fB%m\fP with the
+global hash value of the current revision and the \fBgit\fP backend replaces it
+with the string from the \fIstgitformat\fP style\&.
 .PD
 .PP
 In \fBbranchformat\fP these replacements are done:
@@ -665,6 +785,17 @@ the branch name
 .TP
 \fB%r\fP
 the current revision number
+.PD
+.PP
+In \fBstgitformat\fP these replacements are done:
+.PP
+.PD 0
+.TP
+\fB%p\fP
+the name of the patch currently on top of the stack
+.TP
+\fB%c\fP
+the number of unapplied patches
 .PD
 .PP
 Not all vcs backends have to support all replacements\&. For \fBnvcsformats\fP
@@ -2367,6 +2498,10 @@ user\&.
 The system works by setting up suffix aliases with `\fBalias \-s\fP\&'\&.
 Suffix aliases already installed by the user will not be overwritten\&.
 .PP
+For suffixes defined in lower case, upper case variants will also
+automatically be handled (e\&.g\&. \fBPDF\fP is automatically handled if
+handling for the suffix \fBpdf\fP is defined), but not vice versa\&.
+.PP
 Repeated calls to \fBzsh\-mime\-setup\fP do not override the existing
 mapping between suffixes and executable files unless the option \fB\-f\fP
 is given\&.  Note, however, that this does not override existing suffix
@@ -2780,7 +2915,7 @@ Note that setting an output base suppresses floating point output; use
 See the comments in the function for a few extra tips\&.
 .RE
 .TP
-\fBzmathfuncdef\fP \fImathfunc\fP [ \fIbody\fP ]
+\fBzmathfuncdef\fP [ \fImathfunc\fP [ \fIbody\fP ] ]
 A convenient front end to \fBfunctions \-M\fP\&.
 .RS
 .PP
@@ -2793,10 +2928,15 @@ to refer to optional parameters\&.  Note that the forms must be
 strictly adhered to for the function to calculate the correct number
 of arguments\&.  The implementation is held in a shell function named
 \fBzsh_math_func_\fP\fImathfunc\fP; usually the user will not need
-to refer to the shell function directly\&.
+to refer to the shell function directly\&.  Any existing function
+of the same name is silently replaced\&.
 .PP
 With one argument, remove the mathematical function \fImathfunc\fP
 as well as the shell function implementation\&.
+.PP
+With no arguments, list all \fImathfunc\fP functions in a form
+suitable for restoring the definition\&.
+The functions have not necessarily been defined by \fBzmathfuncdef\fP\&.
 .RE
 .RE
 .PP
@@ -3309,4 +3449,4 @@ The \fBnslookup\fP function looks up this style in the context
 `\fB:nslookup\fP\&' to set the prompt and the right\-side prompt, respectively\&.
 The usual expansions for the \fBPS1\fP and \fBRPS1\fP parameters may be used
 (see
-\fIzshmisc\fP(1))\&.
+EXPANSION OF PROMPT SEQUENCES in \fIzshmisc\fP(1))\&.

@@ -458,12 +458,12 @@ histsubchar(int c)
 		    break;
 		else {
 		    *ptr++ = c;
-                    if (ptr == buf + buflen) {
-                        buf = hrealloc(buf, buflen, 2 * buflen);
-                        ptr = buf + buflen;
-                        buflen *= 2;
-                    }
-               }
+		    if (ptr == buf + buflen) {
+			buf = hrealloc(buf, buflen, 2 * buflen);
+			ptr = buf + buflen;
+			buflen *= 2;
+		    }
+		}
 	    }
 	    if (c != '\n' && !lexstop)
 		c = ingetc();
@@ -491,11 +491,11 @@ histsubchar(int c)
 			break;
 		}
 		*ptr++ = c;
-               if (ptr == buf + buflen) {
-                   buf = hrealloc(buf, buflen, 2 * buflen);
-                   ptr = buf + buflen;
-                   buflen *= 2;
-               }
+		if (ptr == buf + buflen) {
+		    buf = hrealloc(buf, buflen, 2 * buflen);
+		    ptr = buf + buflen;
+		    buflen *= 2;
+		}
 		if (c == '#' || c == bangchar) {
 		    c = ingetc();
 		    break;
@@ -622,6 +622,28 @@ histsubchar(int c)
 	    switch (c) {
 	    case 'p':
 		histdone = HISTFLAG_DONE | HISTFLAG_NOEXEC;
+		break;
+	    case 'a':
+		if (!chabspath(&sline)) {
+		    herrflush();
+		    zerr("modifier failed: a");
+		    return -1;
+		}
+		break;
+
+	    case 'A':
+		if (!chrealpath(&sline)) {
+		    herrflush();
+		    zerr("modifier failed: A");
+		    return -1;
+		}
+		break;
+	    case 'c':
+		if (!(sline = equalsubstr(sline, 0, 0))) {
+		    herrflush();
+		    zerr("modifier failed: c");
+		    return -1;
+		}
 		break;
 	    case 'h':
 		if (!remtpath(&sline)) {
@@ -1142,12 +1164,14 @@ hend(Eprog prog)
      && (hist_ignore_all_dups = isset(HISTIGNOREALLDUPS)) != 0)
 	histremovedups();
 
-    /*
-     * Added the following in case the test "hptr < chline + 1"
-     * is more than just paranoia.
-     */
-    DPUTS(hptr < chline, "History end pointer off start of line");
-    *hptr = '\0';
+    if (hptr) {
+	/*
+	 * Added the following in case the test "hptr < chline + 1"
+	 * is more than just paranoia.
+	 */
+	DPUTS(hptr < chline, "History end pointer off start of line");
+	*hptr = '\0';
+    }
     addlinknode(hookargs, "zshaddhistory");
     addlinknode(hookargs, chline);
     callhookfunc("zshaddhistory", hookargs, 1, &hookret);
@@ -1479,6 +1503,162 @@ hcomsearch(char *str)
 }
 
 /* various utilities for : modifiers */
+
+/**/
+int
+chabspath(char **junkptr)
+{
+    char *current, *dest;
+
+    if (!**junkptr)
+	return 1;
+
+    if (**junkptr != '/') {
+	*junkptr = zhtricat(metafy(zgetcwd(), -1, META_HEAPDUP), "/", *junkptr);
+    }
+
+    current = *junkptr;
+    dest = *junkptr;
+
+#ifdef HAVE_SUPERROOT
+    while (*current == '/' && current[1] == '.' && current[2] == '.' &&
+	   (!current[3] || current[3] == '/')) {
+	*dest++ = '/';
+	*dest++ = '.';
+	*dest++ = '.';
+	current += 3;
+    }
+#endif
+
+    for (;;) {
+	if (*current == '/') {
+#ifdef __CYGWIN__
+	    if (current == *junkptr && current[1] == '/')
+		*dest++ = *current++;
+#endif
+	    *dest++ = *current++;
+	    while (*current == '/')
+		current++;
+	} else if (!*current) {
+	    while (dest > *junkptr + 1 && dest[-1] == '/')
+		dest--;
+	    *dest = '\0';
+	    break;
+	} else if (current[0] == '.' && current[1] == '.' &&
+		   (!current[2] || current[2] == '/')) {
+		if (current == *junkptr || dest == *junkptr) {
+		    *dest++ = '.';
+		    *dest++ = '.';
+		    current += 2;
+		} else if (dest > *junkptr + 2 &&
+			   !strncmp(dest - 3, "../", 3)) {
+		    *dest++ = '.';
+		    *dest++ = '.';
+		    current += 2;
+		} else if (dest > *junkptr + 1) {
+		    *dest = '\0';
+		    for (dest--;
+			 dest > *junkptr + 1 && dest[-1] != '/';
+			 dest--);
+		    if (dest[-1] != '/')
+			dest--;
+		    current += 2;
+		    if (*current == '/')
+			current++;
+		} else if (dest == *junkptr + 1) {
+		    /* This might break with Cygwin's leading double slashes? */
+		    current += 2;
+		} else {
+		    return 0;
+		}
+	} else if (current[0] == '.' && (current[1] == '/' || !current[1])) {
+	     while (*++current == '/');
+	} else {
+	    while (*current != '/' && *current != '\0')
+		if ((*dest++ = *current++) == Meta)
+		    *dest++ = *current++;
+	}
+    }
+    return 1;
+}
+
+/**/
+int
+chrealpath(char **junkptr)
+{
+    char *str;
+#ifdef HAVE_CANONICALIZE_FILE_NAME
+    char *lastpos, *nonreal, *real;
+#else
+# ifdef HAVE_REALPATH
+    char *lastpos, *nonreal, real[PATH_MAX];
+# endif
+#endif
+
+    if (!**junkptr)
+	return 1;
+
+    /* Notice that this means ..'s are applied before symlinks are resolved! */
+    if (!chabspath(junkptr))
+	return 0;
+
+#if !defined(HAVE_REALPATH) && !defined(HAVE_CANONICALIZE_FILE_NAME)
+    return 1;
+#else
+    /*
+     * Notice that this means you cannot pass relative paths into this
+     * function!
+     */
+    if (**junkptr != '/')
+	return 0;
+
+    unmetafy(*junkptr, NULL);
+
+    lastpos = strend(*junkptr);
+    nonreal = lastpos + 1;
+
+    while (!
+#ifdef HAVE_CANONICALIZE_FILE_NAME
+	   /*
+	    * This is a GNU extension to realpath(); it's the
+	    * same as calling realpath() with a NULL second argument
+	    * which uses malloc() to get memory.  The alternative
+	    * interface is easier to test for, however.
+	    */
+	   (real = canonicalize_file_name(*junkptr))
+#else
+	   realpath(*junkptr, real)
+#endif
+	) {
+	if (errno == EINVAL || errno == ELOOP ||
+	    errno == ENAMETOOLONG || errno == ENOMEM)
+	    return 0;
+
+	if (nonreal == *junkptr) {
+	    *real = '\0';
+	    break;
+	}
+
+	while (*nonreal != '/' && nonreal >= *junkptr)
+	    nonreal--;
+	*nonreal = '\0';
+    }
+
+    str = nonreal;
+    while (str <= lastpos) {
+	if (*str == '\0')
+	    *str = '/';
+	str++;
+    }
+
+    *junkptr = metafy(bicat(real, nonreal), -1, META_HEAPDUP);
+#ifdef HAVE_CANONICALIZE_FILE_NAME
+    free(real);
+#endif
+#endif
+
+    return 1;
+}
 
 /**/
 int
@@ -2289,9 +2469,9 @@ savehistfile(char *fn, int err, int writeflags)
 #ifdef HAVE_FCHMOD
 	    if (old_exists && out) {
 #ifdef HAVE_FCHOWN
-		fchown(fileno(out), sb.st_uid, sb.st_gid);
+		if (fchown(fileno(out), sb.st_uid, sb.st_gid) < 0) {} /* IGNORE FAILURE */
 #endif
-		fchmod(fileno(out), sb.st_mode);
+		if (fchmod(fileno(out), sb.st_mode) < 0) {} /* IGNORE FAILURE */
 	    }
 #endif
 	}
@@ -2431,13 +2611,16 @@ lockhistfile(char *fn, int keep_trying)
 	    } else
 		close(fd);
 	    while (link(tmpfile, lockfile) < 0) {
-		if (errno != EEXIST || !keep_trying)
+		if (errno != EEXIST)
+		    zerr("failed to create hard link as lock file %s: %e",
+			 lockfile, errno);
+		else if (!keep_trying)
 		    ;
 		else if (stat(lockfile, &sb) < 0) {
 		    if (errno == ENOENT)
 			continue;
-		}
-		else {
+		    zerr("failed to stat lock file %s: %e", lockfile, errno);
+		} else {
 		    if (time(NULL) - sb.st_mtime < 10)
 			sleep(1);
 		    else

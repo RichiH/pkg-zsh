@@ -31,6 +31,16 @@
 #include "params.pro"
 
 #include "version.h"
+#ifdef CUSTOM_PATCHLEVEL
+#define ZSH_PATCHLEVEL	CUSTOM_PATCHLEVEL
+#else
+#include "patchlevel.h"
+
+/* If removed from the ChangeLog for some reason */
+#ifndef ZSH_PATCHLEVEL
+#define ZSH_PATCHLEVEL "unknown"
+#endif
+#endif
 
 /* what level of localness we are at */
  
@@ -495,10 +505,10 @@ scancountparams(UNUSED(HashNode hn), int flags)
 static Patprog scanprog;
 static char *scanstr;
 static char **paramvals;
-static Param foundparam;     
+static Param foundparam;
 
 /**/
-void
+static void
 scanparamvals(HashNode hn, int flags)
 {
     struct value v;
@@ -538,6 +548,7 @@ scanparamvals(HashNode hn, int flags)
 	    --numparamvals;	/* Value didn't match, discard key */
     } else
 	++numparamvals;
+    foundparam = NULL;
 }
 
 /**/
@@ -631,7 +642,7 @@ createparamtable(void)
     /* Add the special parameters to the hash table */
     for (ip = special_params; ip->node.nam; ip++)
 	paramtab->addnode(paramtab, ztrdup(ip->node.nam), ip);
-    if (emulation != EMULATE_SH && emulation != EMULATE_KSH)
+    if (!EMULATION(EMULATE_SH|EMULATE_KSH))
 	while ((++ip)->node.nam)
 	    paramtab->addnode(paramtab, ztrdup(ip->node.nam), ip);
 
@@ -709,7 +720,7 @@ createparamtable(void)
 #endif
     opts[ALLEXPORT] = oae;
 
-    if (emulation == EMULATE_ZSH)
+    if (EMULATION(EMULATE_ZSH))
     {
 	/*
 	 * For native emulation we always set the variable home
@@ -747,6 +758,7 @@ createparamtable(void)
     setsparam("VENDOR", ztrdup(VENDOR));
     setsparam("ZSH_NAME", ztrdup(zsh_name));
     setsparam("ZSH_VERSION", ztrdup(ZSH_VERSION));
+    setsparam("ZSH_PATCHLEVEL", ztrdup(ZSH_PATCHLEVEL));
     setaparam("signals", sigptr = zalloc((SIGCOUNT+4) * sizeof(char *)));
     for (t = sigs; (*sigptr++ = ztrdup(*t++)); );
 
@@ -1869,7 +1881,7 @@ getstrvalue(Value v)
     switch(PM_TYPE(v->pm->node.flags)) {
     case PM_HASHED:
 	/* (!v->isarr) should be impossible unless emulating ksh */
-	if (!v->isarr && emulation == EMULATE_KSH) {
+	if (!v->isarr && EMULATION(EMULATE_KSH)) {
 	    s = dupstring("[0]");
 	    if (getindex(&s, v, 0) == 0)
 		s = getstrvalue(v);
@@ -2152,7 +2164,7 @@ export_param(Param pm)
 
     if (PM_TYPE(pm->node.flags) & (PM_ARRAY|PM_HASHED)) {
 #if 0	/* Requires changes elsewhere in params.c and builtin.c */
-	if (emulation == EMULATE_KSH /* isset(KSHARRAYS) */) {
+	if (EMULATION(EMULATE_KSH) /* isset(KSHARRAYS) */) {
 	    struct value v;
 	    v.isarr = 1;
 	    v.flags = 0;
@@ -2270,7 +2282,15 @@ setstrvalue(Value v, char *val)
 	break;
     case PM_HASHED:
         {
-	    foundparam->gsu.s->setfn(foundparam, val);
+	    if (foundparam == NULL)
+	    {
+		zerr("%s: attempt to set associative array to scalar",
+		     v->pm->node.nam);
+		zsfree(val);
+		return;
+	    }
+	    else
+		foundparam->gsu.s->setfn(foundparam, val);
         }
 	break;
     }
@@ -3507,7 +3527,11 @@ usernamesetfn(UNUSED(Param pm), char *x)
 # ifdef USE_INITGROUPS
 	initgroups(x, pswd->pw_gid);
 # endif
-	if(!setgid(pswd->pw_gid) && !setuid(pswd->pw_uid)) {
+	if (setgid(pswd->pw_gid))
+	    zwarn("failed to change group ID: %e", errno);
+	else if (setuid(pswd->pw_uid))
+	    zwarn("failed to change user ID: %e", errno);
+	else {
 	    zsfree(cached_username);
 	    cached_username = ztrdup(pswd->pw_name);
 	    cached_uid = pswd->pw_uid;
@@ -3533,7 +3557,8 @@ void
 uidsetfn(UNUSED(Param pm), zlong x)
 {
 #ifdef HAVE_SETUID
-    setuid((uid_t)x);
+    if (setuid((uid_t)x))
+	zwarn("failed to change user ID: %e", errno);
 #endif
 }
 
@@ -3553,7 +3578,8 @@ void
 euidsetfn(UNUSED(Param pm), zlong x)
 {
 #ifdef HAVE_SETEUID
-    seteuid((uid_t)x);
+    if (seteuid((uid_t)x))
+	zwarn("failed to change effective user ID: %e", errno);
 #endif
 }
 
@@ -3573,7 +3599,8 @@ void
 gidsetfn(UNUSED(Param pm), zlong x)
 {
 #ifdef HAVE_SETUID
-    setgid((gid_t)x);
+    if (setgid((gid_t)x))
+	zwarn("failed to change group ID: %e", errno);
 #endif
 }
 
@@ -3593,7 +3620,8 @@ void
 egidsetfn(UNUSED(Param pm), zlong x)
 {
 #ifdef HAVE_SETEUID
-    setegid((gid_t)x);
+    if (setegid((gid_t)x))
+	zwarn("failed to change effective group ID: %e", errno);
 #endif
 }
 

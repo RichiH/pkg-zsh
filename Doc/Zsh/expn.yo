@@ -64,7 +64,7 @@ most recent command is always retained in any case.  Each saved command in
 the history list is called a history em(event) and is assigned a number,
 beginning with 1 (one) when the shell starts up.  The history number that
 you may see in your prompt (see
-ifzman(Prompt Expansion in zmanref(zshmisc))\
+ifzman(EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
 ifnzman(noderef(Prompt Expansion))\
 ) is the number that is to be assigned to the em(next) command.
 
@@ -216,20 +216,34 @@ of em(filename generation) and em(parameter expansion), except where
 noted.
 
 startitem()
-item(tt(h))(
-Remove a trailing pathname component, leaving the head.  This works
-like `tt(dirname)'.
+item(tt(a))(
+Turn a file name into an absolute path:  prepends the current directory,
+if necessary, and resolves any use of `tt(..)' and `tt(.)' in the path.
+Note that the transformation takes place even if the file or any
+intervening directories do not exist.
 )
-item(tt(r))(
-Remove a filename extension of the form `tt(.)var(xxx)', leaving
-the root name.
+item(tt(A))(
+As `tt(a)', but also resolve use of symbolic links where possible.
+Note that resolution of `tt(..)' occurs em(before) resolution of symbolic
+links.  This call is equivalent to tt(a) unless your system has the
+tt(realpath) system call (modern systems do).
+)
+item(tt(c))(
+Resolve a command name into an absolute path by searching the command
+path given by the tt(PATH) variable.  This does not work for commands
+containing directory parts.  Note also that this does not usually work as
+a glob qualifier unless a file of the same name is found in the
+current directory.
 )
 item(tt(e))(
 Remove all but the extension.
 )
-item(tt(t))(
-Remove all leading pathname components, leaving the tail.  This works
-like `tt(basename)'.
+item(tt(h))(
+Remove a trailing pathname component, leaving the head.  This works
+like `tt(dirname)'.
+)
+item(tt(l))(
+Convert the words to all lowercase.
 )
 item(tt(p))(
 Print the new command but do not execute it.  Only works with history
@@ -244,15 +258,9 @@ by tt(eval).
 item(tt(Q))(
 Remove one level of quotes from the substituted words.
 )
-item(tt(x))(
-Like tt(q), but break into words at whitespace.  Does not work with
-parameter expansion.
-)
-item(tt(l))(
-Convert the words to all lowercase.
-)
-item(tt(u))(
-Convert the words to all uppercase.
+item(tt(r))(
+Remove a filename extension of the form `tt(.)var(xxx)', leaving
+the root name.
 )
 item(tt(s/)var(l)tt(/)var(r)[tt(/)])(
 Substitute var(r) for var(l) as described below.
@@ -271,6 +279,17 @@ Repeat the previous tt(s) substitution.  Like tt(s), may be preceded
 immediately by a tt(g).  In parameter expansion the tt(&) must appear
 inside braces, and in filename generation it must be quoted with a
 backslash.
+)
+item(tt(t))(
+Remove all leading pathname components, leaving the tail.  This works
+like `tt(basename)'.
+)
+item(tt(u))(
+Convert the words to all uppercase.
+)
+item(tt(x))(
+Like tt(q), but break into words at whitespace.  Does not work with
+parameter expansion.
 )
 enditem()
 
@@ -353,12 +372,19 @@ texinode(Process Substitution)(Parameter Expansion)(History Expansion)(Expansion
 sect(Process Substitution)
 cindex(process substitution)
 cindex(substitution, process)
-Each command argument of the form
+Each part of a command argument that takes the form
 `tt(<LPAR())var(list)tt(RPAR())',
 `tt(>LPAR())var(list)tt(RPAR())' or
 `tt(=LPAR())var(list)tt(RPAR())'
-is subject to process substitution.
-In the case of the tt(<) or tt(>) forms, the shell runs process
+is subject to process substitution.  The expression may be preceeded
+or followed by other strings except that, to prevent clashes with
+commonly occurring strings and patterns, the last
+form must occur at the start of a command argument, and the forms
+are only expanded when first parsing command or assignment arguments.
+Process substitutions may be used following redirection operators; in this
+case, the substitution must appear with no trailing string.
+
+In the case of the tt(<) or tt(>) forms, the shell runs the commands in
 var(list) asynchronously.  If the system supports the tt(/dev/fd)
 mechanism, the command argument is the name of the device file
 corresponding to a file descriptor; otherwise, if the system supports named
@@ -701,7 +727,9 @@ If the tt(MULTIBYTE) option is set and the number is greater than 127
 )
 item(tt(%))(
 Expand all tt(%) escapes in the resulting words in the same way as in
-prompts (see noderef(Prompt Expansion)). If this flag is given twice,
+prompts (see 
+ifzman(EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
+ifnzman(noderef(Prompt Expansion))). If this flag is given twice,
 full prompt expansion is done on the resulting words, depending on the
 setting of the tt(PROMPT_PERCENT), tt(PROMPT_SUBST) and tt(PROMPT_BANG)
 options.
@@ -2222,7 +2250,7 @@ pindex(NUMERIC_GLOB_SORT, setting in pattern)
 item(tt(o)var(c))(
 specifies how the names of the files should be sorted. If var(c) is
 tt(n) they are sorted by name (the default); if it is tt(L) they
-are sorted depending on the size (length) of the files; if tt(l) 
+are sorted depending on the size (length) of the files; if tt(l)
 they are sorted by the number of links; if tt(a), tt(m), or tt(c)
 they are sorted by the time of the last access, modification, or
 inode change respectively; if tt(d), files in subdirectories appear before
@@ -2235,6 +2263,16 @@ youngest file. Also note that the modifiers tt(^) and tt(-) are used,
 so `tt(*(^-oL))' gives a list of all files sorted by file size in descending
 order, following any symbolic links.  Unless tt(oN) is used, multiple order
 specifiers may occur to resolve ties.
+
+tt(oe) and tt(o+) are special cases; they are each followed by shell code,
+delimited as for the tt(e) glob qualifier and the tt(+) glob qualifier
+respectively (see above).  The code is executed for each matched file with
+the parameter tt(REPLY) set to the name of the file on entry.  The code
+should modify the parameter tt(REPLY) in some fashion.  On return, the value
+of the parameter is used instead of the file name as the string on which to
+sort.  Unlike other sort operators, tt(oe) and tt(o+) may be repeated, but
+note that the maximum number of sort operators of any kind that may appear
+in any glob expression is 12.
 )
 item(tt(O)var(c))(
 like `tt(o)', but sorts in descending order; i.e. `tt(*(^oc))' is the

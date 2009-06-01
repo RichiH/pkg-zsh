@@ -58,7 +58,7 @@ static struct builtin builtins[] =
     BUILTIN("disable", 0, bin_enable, 0, -1, BIN_DISABLE, "afmrs", NULL),
     BUILTIN("disown", 0, bin_fg, 0, -1, BIN_DISOWN, NULL, NULL),
     BUILTIN("echo", BINF_SKIPINVALID, bin_print, 0, -1, BIN_ECHO, "neE", "-"),
-    BUILTIN("emulate", 0, bin_emulate, 1, 1, 0, "LR", NULL),
+    BUILTIN("emulate", 0, bin_emulate, 0, 3, 0, "LR", NULL),
     BUILTIN("enable", 0, bin_enable, 0, -1, BIN_ENABLE, "afmrs", NULL),
     BUILTIN("eval", BINF_PSPECIAL, bin_eval, 0, -1, BIN_EVAL, NULL, NULL),
     BUILTIN("exit", BINF_PSPECIAL, bin_break, 0, 1, BIN_EXIT, NULL, NULL),
@@ -69,7 +69,7 @@ static struct builtin builtins[] =
      * But that's actually not useful, so it's more consistent to
      * cause an error.
      */
-    BUILTIN("fc", 0, bin_fc, 0, -1, BIN_FC, "nlre:IRWAdDfEimpPa", NULL),
+    BUILTIN("fc", 0, bin_fc, 0, -1, BIN_FC, "aAdDe:EfiIlmnpPrRt:W", NULL),
     BUILTIN("fg", 0, bin_fg, 0, -1, BIN_FG, NULL, NULL),
     BUILTIN("float", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "E:%F:%HL:%R:%Z:%ghlprtux", "E"),
     BUILTIN("functions", BINF_PLUSOPTS, bin_functions, 0, -1, 0, "kmMtuUz", NULL),
@@ -81,7 +81,7 @@ static struct builtin builtins[] =
     BUILTIN("hashinfo", 0, bin_hashinfo, 0, 0, 0, NULL, NULL),
 #endif
 
-    BUILTIN("history", 0, bin_fc, 0, -1, BIN_FC, "nrdDfEimpPa", "l"),
+    BUILTIN("history", 0, bin_fc, 0, -1, BIN_FC, "adDEfimnpPrt:", "l"),
     BUILTIN("integer", BINF_PLUSOPTS | BINF_MAGICEQUALS | BINF_PSPECIAL, bin_typeset, 0, -1, 0, "HL:%R:%Z:%ghi:%lprtux", "i"),
     BUILTIN("jobs", 0, bin_fg, 0, -1, BIN_JOBS, "dlpZrs", NULL),
     BUILTIN("kill", BINF_HANDLES_OPTS, bin_kill, 0, -1, 0, NULL, NULL),
@@ -536,7 +536,7 @@ bin_set(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 
     /* Obsolescent sh compatibility: set - is the same as set +xv *
      * and set - args is the same as set +xv -- args              */
-    if (emulation != EMULATE_ZSH && *args && **args == '-' && !args[0][1]) {
+    if (!EMULATION(EMULATE_ZSH) && *args && **args == '-' && !args[0][1]) {
 	dosetopt(VERBOSE, 0, 0);
 	dosetopt(XTRACE, 0, 0);
 	if (!args[1])
@@ -795,16 +795,16 @@ bin_cd(char *nam, char **argv, Options ops, int func)
 	setjobpwd();
 	zsfree(pwd);
 	pwd = metafy(zgetcwd(), -1, META_DUP);
-    } else if (stat(".", &st2) < 0)
-	chdir(unmeta(pwd));
-    else if (st1.st_ino != st2.st_ino || st1.st_dev != st2.st_dev) {
+    } else if (stat(".", &st2) < 0) {
+	if (chdir(unmeta(pwd)) < 0)
+	    zwarn("unable to chdir(%s): %e", pwd, errno);
+    } else if (st1.st_ino != st2.st_ino || st1.st_dev != st2.st_dev) {
 	if (chasinglinks) {
 	    setjobpwd();
 	    zsfree(pwd);
 	    pwd = metafy(zgetcwd(), -1, META_DUP);
-	} else {
-	    chdir(unmeta(pwd));
-	}
+	} else if (chdir(unmeta(pwd)) < 0)
+	    zwarn("unable to chdir(%s): %e", pwd, errno);
     }
     unqueue_signals();
     return 0;
@@ -1480,6 +1480,7 @@ bin_fc(char *nam, char **argv, Options ops, int func)
 		    unqueue_signals();
 		    zwarnnam("fc",
 		      "current history line would recurse endlessly, aborted");
+		    fclose(out);
 		    unlink(fil);
 		    return 1;
 		}
@@ -1598,7 +1599,7 @@ fclist(FILE *f, Options ops, zlong first, zlong last,
 {
     int fclistdone = 0;
     zlong tmp;
-    char *s;
+    char *s, *tdfmt, *timebuf;
     Histent ent;
 
     /* reverse range if required */
@@ -1619,7 +1620,28 @@ fclist(FILE *f, Options ops, zlong first, zlong last,
 	    zwarnnam("fc", "no such event: %s", buf);
 	} else
 	    zwarnnam("fc", "no events in that range");
+	if (f != stdout)
+	    fclose(f);
 	return 1;
+    }
+
+    if (OPT_ISSET(ops,'d') || OPT_ISSET(ops,'f') ||
+	OPT_ISSET(ops,'E') || OPT_ISSET(ops,'i') ||
+	OPT_ISSET(ops,'t')) {
+	if (OPT_ISSET(ops,'t')) {
+	    tdfmt = OPT_ARG(ops,'t');
+	} else if (OPT_ISSET(ops,'i')) {
+	    tdfmt = "%Y-%m-%d %H:%M";
+	} else if (OPT_ISSET(ops,'E')) {
+	    tdfmt = "%f.%-m.%Y %H:%M";
+	} else if (OPT_ISSET(ops,'f')) {
+	    tdfmt = "%-m/%f/%Y %H:%M";
+	} else {
+	    tdfmt = "%H:%M";
+	}
+	timebuf = zhalloc(256);
+    } else {
+	tdfmt = timebuf = NULL;
     }
 
     for (;;) {
@@ -1638,24 +1660,11 @@ fclist(FILE *f, Options ops, zlong first, zlong last,
 	    }
 	    /* output actual time (and possibly date) of execution of the
 	       command, if required */
-	    if (OPT_ISSET(ops,'d') || OPT_ISSET(ops,'f') ||
-		OPT_ISSET(ops,'E') || OPT_ISSET(ops,'i')) {
+	    if (tdfmt != NULL) {
 		struct tm *ltm;
 		ltm = localtime(&ent->stim);
-		if (OPT_ISSET(ops,'i')) {
-		    fprintf(f, "%d-%02d-%02d ",
-			    ltm->tm_year + 1900,
-			    ltm->tm_mon + 1, ltm->tm_mday);
-		} else if (OPT_ISSET(ops,'E')) {
-		    fprintf(f, "%d.%d.%d ",
-			    ltm->tm_mday, ltm->tm_mon + 1,
-			    ltm->tm_year + 1900);
-		} else if (OPT_ISSET(ops,'f')) {
-		    fprintf(f, "%d/%d/%d ",
-			    ltm->tm_mon + 1, ltm->tm_mday,
-			    ltm->tm_year + 1900);
-		}
-		fprintf(f, "%02d:%02d  ", ltm->tm_hour, ltm->tm_min);
+		if (ztrftime(timebuf, 256, tdfmt, ltm))
+		    fprintf(f, "%s  ", timebuf);
 	    }
 	    /* display the time taken by the command, if required */
 	    if (OPT_ISSET(ops,'D')) {
@@ -1951,7 +1960,8 @@ typeset_single(char *cname, char *pname, Param pm, UNUSED(int func),
 	if (!on && !roff && !value) {
 	    if (OPT_ISSET(ops,'p'))
 		paramtab->printnode(&pm->node, PRINT_TYPESET);
-	    else if (unset(TYPESETSILENT) || OPT_ISSET(ops,'m'))
+	    else if (!OPT_ISSET(ops,'g') &&
+		     (unset(TYPESETSILENT) || OPT_ISSET(ops,'m')))
 		paramtab->printnode(&pm->node, PRINT_INCLUDEVALUE);
 	    return pm;
 	}
@@ -2857,6 +2867,8 @@ bin_functions(char *name, char **argv, Options ops, int func)
 	    shf = (Shfunc) zshcalloc(sizeof *shf);
 	    shf->node.flags = on;
 	    shf->funcdef = mkautofn(shf);
+	    /* No sticky emulation for autoloaded functions */
+	    shf->emulation = 0;
 	    shfunctab->addnode(shfunctab, ztrdup(*argv), shf);
 
 	    if (signum != -1) {
@@ -3730,8 +3742,30 @@ bin_print(char *name, char **args, Options ops, int func)
 		memset(&mbs, 0, sizeof(mbstate_t));
 		while (l > 0) {
 		    wchar_t wc;
-		    size_t cnt = mbrtowc(&wc, aptr, l, &mbs);
+		    size_t cnt;
 		    int wcw;
+
+		    /*
+		     * Prevent misaligned columns due to escape sequences by
+		     * skipping over them. Octals \033 and \233 are the
+		     * possible escape characters recognized by ANSI.
+		     *
+		     * It ought to be possible to do this in the case
+		     * of prompt expansion by propagating the information
+		     * about escape sequences (currently we strip this
+		     * out).
+		     */
+		    if (*aptr == '\033' || *aptr == '\233') {
+			for (aptr++, l--;
+			     l && !isalpha(STOUC(*aptr));
+			     aptr++, l--)
+			    ;
+			aptr++;
+			l--;
+			continue;
+		    }
+
+		    cnt = mbrtowc(&wc, aptr, l, &mbs);
 
 		    if (cnt == MB_INCOMPLETE || cnt == MB_INVALID)
 		    {
@@ -4740,24 +4774,12 @@ bin_dot(char *name, char **argv, UNUSED(Options ops), UNUSED(int func))
     return ret ? ret : lastval;
 }
 
-/**/
-int
-bin_emulate(UNUSED(char *nam), char **argv, Options ops, UNUSED(int func))
-{
-    emulate(*argv, OPT_ISSET(ops,'R'));
-    if (OPT_ISSET(ops,'L'))
-	opts[LOCALOPTIONS] = opts[LOCALTRAPS] = 1;
-    return 0;
-}
+/*
+ * common for bin_emulate and bin_eval
+ */
 
-/* eval: simple evaluation */
-
-/**/
-mod_export int ineval;
-
-/**/
-int
-bin_eval(UNUSED(char *nam), char **argv, UNUSED(Options ops), UNUSED(int func))
+static int
+eval(char **argv)
 {
     Eprog prog;
     char *oscriptname = scriptname;
@@ -4832,6 +4854,99 @@ bin_eval(UNUSED(char *nam), char **argv, UNUSED(Options ops), UNUSED(int func))
     ineval = oineval;
 
     return lastval;
+}
+
+/* emulate: set emulation mode and optionally evaluate shell code */
+
+/**/
+int
+bin_emulate(UNUSED(char *nam), char **argv, Options ops, UNUSED(int func))
+{
+    int opt_L = OPT_ISSET(ops, 'L');
+    int opt_R = OPT_ISSET(ops, 'R');
+    int saveemulation, savesticky_emulation;
+    int ret;
+    char saveopts[OPT_SIZE];
+
+    /* without arguments just print current emulation */
+    if (!*argv) {
+	const char *shname;
+
+	if (opt_L || opt_R) {
+	    zwarnnam("emulate", "not enough arguments");
+	    return 1;
+	}
+
+	switch(SHELL_EMULATION()) {
+	case EMULATE_CSH:
+	    shname = "csh";
+	    break;
+
+	case EMULATE_KSH:
+	    shname = "ksh";
+	    break;
+
+	case EMULATE_SH:
+	    shname = "sh";
+	    break;
+
+	default:
+	    shname = "zsh";
+	    break;
+	}
+
+	printf("%s\n", shname);
+	return 0;
+    }
+
+    /* with single argument set current emulation */
+    if (!argv[1]) {
+	emulate(*argv, OPT_ISSET(ops,'R'));
+	if (OPT_ISSET(ops,'L'))
+	    opts[LOCALOPTIONS] = opts[LOCALTRAPS] = 1;
+	return 0;
+    }
+
+    /* If "-c command" is given, evaluate command using specified
+     * emulation mode.
+     */
+    if (strcmp(argv[1], "-c")) {
+	zwarnnam("emulate", "unknown argument %s", argv[1]);
+	return 1;
+    }
+
+    if (!argv[2]) {
+	zwarnnam("emulate", "not enough arguments");
+	return 1;
+    }
+
+    if (opt_L) {
+	zwarnnam("emulate", "option -L incompatible with -c");
+	return 1;
+    }
+
+    memcpy(saveopts, opts, sizeof(opts));
+    saveemulation = emulation;
+    savesticky_emulation = sticky_emulation;
+    emulate(*argv, OPT_ISSET(ops,'R'));
+    sticky_emulation = emulation;
+    ret = eval(argv+2);
+    memcpy(opts, saveopts, sizeof(opts));
+    sticky_emulation = savesticky_emulation;
+    emulation = saveemulation;
+    return ret;
+}
+
+/* eval: simple evaluation */
+
+/**/
+mod_export int ineval;
+
+/**/
+int
+bin_eval(UNUSED(char *nam), char **argv, UNUSED(Options ops), UNUSED(int func))
+{
+    return eval(argv);
 }
 
 static char *zbuf;
@@ -4975,16 +5090,16 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
     if (OPT_ISSET(ops,'d')) {
 	char *delimstr = OPT_ARG(ops,'d');
 #ifdef MULTIBYTE_SUPPORT
-	wint_t wc;
+	wint_t wi;
 
 	if (isset(MULTIBYTE)) {
 	    mb_metacharinit();
-	    (void)mb_metacharlenconv(delimstr, &wc);
+	    (void)mb_metacharlenconv(delimstr, &wi);
 	}
 	else
-	    wc = WEOF;
-	if (wc != WEOF)
-	    delim = (wchar_t)wc;
+	    wi = WEOF;
+	if (wi != WEOF)
+	    delim = (wchar_t)wi;
 	else
 	    delim = (wchar_t)((delimstr[0] == Meta) ?
 			      delimstr[1] ^ 32 : delimstr[0]);
@@ -5248,8 +5363,12 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 		wc = (wchar_t)c;
 	    }
 	    if (ret != MB_INCOMPLETE) {
-		if (ret == MB_INVALID)
+		if (ret == MB_INVALID) {
 		    memset(&mbs, 0, sizeof(mbs));
+		    /* Treat this as a single character */
+		    wc = (wchar_t)c;
+		    laststart = bptr;
+		}
 		if (bslash && wc == delim) {
 		    bslash = 0;
 		    continue;
@@ -5340,9 +5459,10 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 	}
 	signal_setmask(s);
 #ifdef MULTIBYTE_SUPPORT
-	if (c == EOF)
+	if (c == EOF) {
 	    gotnl = 1;
-	if (ret == MB_INCOMPLETE) {
+	    *bptr = '\0';	/* see below */
+	} else if (ret == MB_INCOMPLETE) {
 	    /*
 	     * We can only get here if there is an EOF in the
 	     * middle of a character... safest to keep the debris,
@@ -5436,8 +5556,12 @@ bin_read(char *name, char **args, Options ops, UNUSED(int func))
 		wc = (wchar_t)c;
 	    }
 	    if (ret != MB_INCOMPLETE) {
-		if (ret == MB_INVALID)
+		if (ret == MB_INVALID) {
 		    memset(&mbs, 0, sizeof(mbs));
+		    /* Treat this as a single character */
+		    wc = (wchar_t)c;
+		    laststart = bptr;
+		}
 		/*
 		 * \ at the end of a line introduces a continuation line,
 		 * except in raw mode (-r option)
@@ -5693,7 +5817,7 @@ bin_test(char *name, char **argv, UNUSED(Options ops), int func)
     condlex = testlex;
     testlex();
     prog = parse_cond();
-    condlex = yylex;
+    condlex = zshlex;
 
     if (errflag) {
 	errflag = 0;
