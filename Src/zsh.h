@@ -147,28 +147,29 @@ struct mathfunc {
 #define Tick		((char) 0x91)
 #define Inang		((char) 0x92)
 #define Outang		((char) 0x93)
-#define Quest		((char) 0x94)
-#define Tilde		((char) 0x95)
-#define Qtick		((char) 0x96)
-#define Comma		((char) 0x97)
+#define OutangProc	((char) 0x94)
+#define Quest		((char) 0x95)
+#define Tilde		((char) 0x96)
+#define Qtick		((char) 0x97)
+#define Comma		((char) 0x98)
 /*
  * Null arguments: placeholders for single and double quotes
  * and backslashes.
  */
-#define Snull		((char) 0x98)
-#define Dnull		((char) 0x99)
-#define Bnull		((char) 0x9a)
+#define Snull		((char) 0x99)
+#define Dnull		((char) 0x9a)
+#define Bnull		((char) 0x9b)
 /*
  * Backslash which will be returned to "\" instead of being stripped
  * when we turn the string into a printable format.
  */
-#define Bnullkeep       ((char) 0x9b)
+#define Bnullkeep       ((char) 0x9c)
 /*
  * Null argument that does not correspond to any character.
  * This should be last as it does not appear in ztokens and
  * is used to initialise the IMETA type in inittyptab().
  */
-#define Nularg		((char) 0x9c)
+#define Nularg		((char) 0x9d)
 
 /*
  * Take care to update the use of IMETA appropriately when adding
@@ -381,6 +382,7 @@ typedef struct builtin   *Builtin;
 typedef struct cmdnam    *Cmdnam;
 typedef struct complist  *Complist;
 typedef struct conddef   *Conddef;
+typedef struct dirsav    *Dirsav;
 typedef struct features  *Features;
 typedef struct feature_enables  *Feature_enables;
 typedef struct funcstack *Funcstack;
@@ -1066,6 +1068,7 @@ struct shfunc {
     char *filename;             /* Name of file located in */
     zlong lineno;		/* line number in above file */
     Eprog funcdef;		/* function definition    */
+    int emulation;		/* sticky emulation for function */
 };
 
 /* Shell function context types. */
@@ -1114,6 +1117,15 @@ struct funcwrap {
 
 #define WRAPDEF(func) \
     { NULL, 0, func, NULL }
+
+/*
+ * User-defined hook arrays
+ */
+
+/* Name appended to function name to get hook array */
+#define HOOK_SUFFIX	"_functions"
+/* Length of that including NUL byte */
+#define HOOK_SUFFIX_LEN	11
 
 /* node in builtin command hash table (builtintab) */
 
@@ -1789,6 +1801,20 @@ struct histent {
 #define EMULATE_SH   (1<<3) /* Bourne shell */
 #define EMULATE_ZSH  (1<<4) /* `native' mode */
 
+/* Test for a shell emulation.  Use this rather than emulation directly. */
+#define EMULATION(X)	(emulation & (X))
+
+/* Return only base shell emulation field. */
+#define SHELL_EMULATION()	(emulation & ((1<<5)-1))
+
+/* Additional flags */
+
+#define EMULATE_FULLY (1<<5) /* "emulate -R" in effect */
+/*
+ * Higher bits are used in options.c, record lowest unused bit...
+ */
+#define EMULATE_UNUSED (1<<6)
+
 /* option indices */
 
 enum {
@@ -1908,6 +1934,7 @@ enum {
     OCTALZEROES,
     OVERSTRIKE,
     PATHDIRS,
+    POSIXALIASES,
     POSIXBUILTINS,
     POSIXIDENTIFIERS,
     PRINTEIGHTBIT,

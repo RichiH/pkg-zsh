@@ -5,11 +5,11 @@ THE Z SHELL (ZSH)
 Version
 -------
 
-This is version 4.3.9 of the shell.  This is a development release,
+This is version 4.3.10 of the shell.  This is a development release,
 but is believed to be reasonably stable.  Sites where the users need to
 edit command lines with multibyte characters (in particular UTF-8)
 will probably want to upgrade.  The previous widely released version
-of the shell was 4.3.6.
+of the shell was 4.3.9.
 
 Installing Zsh
 --------------
@@ -33,8 +33,16 @@ details, see the documentation.
 Possible incompatibilities
 ---------------------------
 
-This section documents incompatibilities in the shell since the 4.2
-series of releases.
+In some 4.3.X releases of zsh, the completion system added a ".."  as a
+trial completion whenever completing directories.  This was a bug: as
+documented in the zshcompsys manual, this feature needs to be turned on by
+a style:
+
+  zstyle ':completion:*' special-dirs true
+
+
+The rest of this section documents incompatibilities in the shell since the
+4.2 series of releases.
 
 In previous releases of the shell, builtin commands and precommand
 modifiers that did not accept options also did not recognize the
@@ -68,6 +76,15 @@ before the command to which they refer instead of after.  This is almost
 always the right behaviour for the intended purpose of debugging and is
 consistent with recent versions of other shells.  The option
 DEBUG_BEFORE_CMD can be unset to revert to the previous behaviour.
+
+Previously, process substitutions of the form =(...), <(...) and >(...)
+were only handled if they appeared as separate command arguments.
+(However, the latter two forms caused the current argument to be
+terminated and a new one started even if they occurred in the middle of
+a string.)  Now all three may be followed by other strings, and the
+latter two may also be preceeded by other strings.  Remaining
+limitations on their use (to reduce incompatibilities to a minimum)
+are documented in the zshexpn.1 manual.
 
 In previous versions of the shell it was possible to use index 0 in an
 array or string subscript to refer to the same element as index 1 if the

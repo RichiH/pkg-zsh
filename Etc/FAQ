@@ -232,7 +232,7 @@ Chapter 1: Introducing zsh and how to install it
 1.5: What's the latest version?
 
   Zsh 4.2.7 is the latest production version.  The latest development
-  version is 4.3.9; this contains support for multibyte character strings
+  version is 4.3.10; this contains support for multibyte character strings
   (such as UTF-8 locales).  All the main features for multibyte
   support are now in place, although there is some debugging work
   still to be done.
@@ -420,7 +420,8 @@ your shell' posted frequently to the USENET group comp.unix.shell.
   in some versions of ksh), KSH_ARRAYS, KSH_GLOB, KSH_OPTION_PRINT,
   LOCAL_OPTIONS, NO_BAD_PATTERN, NO_BANG_HIST, NO_EQUALS, NO_HUP,
   NO_NOMATCH, NO_RCS, NO_SHORT_LOOPS, PROMPT_SUBST, RM_STAR_SILENT,
-  POSIX_BUILTINS, SH_FILE_EXPANSION, SH_GLOB, SH_OPTION_LETTERS,
+  POSIX_ALIASES, POSIX_BUILTINS, POSIX_IDENTIFIERS,
+  SH_FILE_EXPANSION, SH_GLOB, SH_OPTION_LETTERS,
   SH_WORD_SPLIT (see question 3.1) and SINGLE_LINE_ZLE.
   Note that you can also disable any built-in commands which get in
   your way.  If invoked as `ksh', the shell will try to set suitable
@@ -442,6 +443,12 @@ your shell' posted frequently to the USENET group comp.unix.shell.
         `$array' refers to the whole array, not $array[0];
         braces are unnecessary: $a[1] == ${a[1]}, etc.
         Set the KSH_ARRAYS option for compatibility.
+    o   Furthermore, individual elements of arrays in zsh are always
+        strings, not separate parameters.  This means, for example, you
+	can't `unset' an array element in zsh as you can in ksh; you
+	can only set it to the empty string, or shorten the array.
+	(You can unset elements of associative arrays in zsh because
+	those are a completely different type of object.)
     o   Coprocesses are established by `coproc'; `|&' behaves like
         csh.  Handling of coprocess file descriptors is also different.
     o   In `cmd1 && cmd2 &', only `cmd2' instead of the whole

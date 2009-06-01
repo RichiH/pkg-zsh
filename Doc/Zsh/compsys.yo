@@ -202,6 +202,13 @@ to tt(fpath) as necessary.  To force a check of exactly the directories
 currently named in tt(fpath), set tt(_compdir) to an empty string before
 calling tt(compaudit) or tt(compinit).
 
+findex(bashcompinit)
+The function tt(bashcompinit) compatibility with bash's programmable
+completion system.  When run it will define the functions, tt(compgen) and
+tt(complete) which correspond to the bash builtins with the same names.
+It will then be possible to use completion specifications and functions
+written for bash.
+
 subsect(Autoloaded files)
 cindex(completion system, autoloaded functions)
 
@@ -1545,7 +1552,8 @@ string to display above matches in completion lists.  The sequence
 what these matches are.  This string may also contain the following
 sequences to specify output attributes,
 ifnzman(noderef(Prompt Expansion))\
-ifzman(as described in the section PROMPT EXPANSION in zmanref(zshmisc)):
+ifzman(as described in the section EXPANSION OF PROMPT SEQUENCES in
+zmanref(zshmisc)):
 `tt(%B)', `tt(%S)', `tt(%U)', `tt(%F)', `tt(%K)' and their lower case
 counterparts, as well as `tt(%{)...tt(%})'.  `tt(%F)', `tt(%K)' and
 `tt(%{)...tt(%})' take arguments in the same form as prompt
@@ -3095,13 +3103,35 @@ tt(COMPLETE_IN_WORD) option is set; otherwise, the cursor will
 be moved to the end of the current word before the completion code is
 called and hence there will be no suffix.
 )
-findex(bashcompinit)
-item(tt(bashcompinit))(
-This function provides compatibility with bash's programmable completion
-system.  When run it will define the functions, tt(compgen) and
-tt(complete) which correspond to the bash builtins with the same names.
-It will then be possible to use completion specifications and functions
-written for bash.
+findex(_user_expand)
+item(tt(_user_expand))(
+This completer behaves similarly to the tt(_expand) completer but
+instead performs expansions defined by users.  The styles tt(add-space) and
+tt(sort) styles specific to the tt(_expand) completer are usable with
+tt(_user_expand) in addition to other styles handled more generally by
+the completion system.  The tag tt(all-expansions) is also available.
+
+The expansion depends on the array style tt(user-expand) being defined
+for the current context; remember that the context for completers is less
+specific than that for contextual completion as the full context has not
+yet been determined.  Elements of the array may have one of the following
+forms:
+startsitem()
+sitem(tt($)var(hash))(
+var(hash) is the name of an associative array.  Note this is not a full
+parameter expression, merely a tt($), suitably quoted to prevent immediate
+expansion, followed by the name of an associative array.  If the trial
+expansion word matches a key in var(hash), the resulting expansion is the
+corresponding value.
+)
+sitem(var(_func))(
+var(_func) is the name of a shell function whose name must begin with
+tt(_) but is not otherwise special to the completion system.  The function
+is called with the trial word as an argument.  If the word is to be
+expanded, the function should set the array tt(reply) to a list of
+expansions.  The return status of the function is irrelevant.
+)
+endsitem()
 )
 enditem()
 
@@ -3986,7 +4016,8 @@ The var(descr) is taken as a string to display above the matches if the
 tt(format) style for the tt(descriptions) tag is set.  This is followed by
 one or two names of arrays followed by options to pass to tt(compadd).  The
 first array contains the possible completions with their descriptions in
-the form `var(completion)tt(:)var(description)'.  If a second array is
+the form `var(completion)tt(:)var(description)'.  Any literal colons in
+var(completion) must be quoted with a backslash.  If a second array is
 given, it should have the same number of elements as the first; in this
 case the corresponding elements are added as possible completions instead
 of the var(completion) strings from the first array.  The completion list
@@ -4272,7 +4303,7 @@ findex(_parameters)
 item(tt(_parameters))(
 This is used to complete the names of shell parameters.
 
-The option `tt(-g var(pattern))' limits the completion to parameters
+The option `tt(-g) var(pattern)' limits the completion to parameters
 whose type matches the var(pattern).  The type of a parameter is that
 shown by `tt(print ${(t))var(param)tt(})', hence judicious use of
 `tt(*)' in var(pattern) is probably necessary.

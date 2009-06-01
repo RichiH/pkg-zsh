@@ -918,11 +918,12 @@ bin_bindkey_bind(char *name, char *kmname, Keymap km, char **argv, Options ops, 
 		    metafy(m, 1, META_NOALLOC);
 		    bindkey(km, m, refthingy(fn), str);
 		}
-		unrefthingy(fn);
 	    }
+	    unrefthingy(fn);
 	} else {
 	    if(bindkey(km, seq, fn, str)) {
 		zwarnnam(name, "cannot bind to an empty key sequence");
+		unrefthingy(fn);
 		ret = 1;
 	    }
 	}
@@ -1275,6 +1276,17 @@ default_bindings(void)
 
     /* the .safe map cannot be modified or deleted */
     smap->flags |= KM_IMMUTABLE;
+
+    /* isearch keymap: initially empty */
+    isearch_keymap = newkeymap(NULL, "isearch");
+    linkkeymap(isearch_keymap, "isearch", 0);
+
+    /* command keymap: make sure accept-line and send-break are bound */
+    command_keymap = newkeymap(NULL, "command");
+    command_keymap->first['\n'] = refthingy(t_acceptline);
+    command_keymap->first['\r'] = refthingy(t_acceptline);
+    command_keymap->first['G'&0x1F] = refthingy(t_sendbreak);
+    linkkeymap(command_keymap, "command", 0);
 }
 
 /*************************/

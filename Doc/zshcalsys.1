@@ -1,4 +1,4 @@
-.TH "ZSHCALSYS" "1" "October 30, 2008" "zsh 4\&.3\&.9"
+.TH "ZSHCALSYS" "1" "June 1, 2009" "zsh 4\&.3\&.10"
 .SH "NAME"
 zshcalsys \- zsh calendar system
 .\" Yodl file: Zsh/calsys.yo
@@ -404,6 +404,10 @@ Show all items in the calendar, regardless of the \fBstart\fP and
 Brief:  don\&'t display continuation lines (i\&.e\&. indented lines following
 the line with the date/time), just the first line\&.
 .TP
+\fB\-B\fP \fIlines\fP
+Brief: display at most the first \fIlines\fP lines of the calendar
+entry\&.  `\fB\-B 1\fP\&' is equivalent to `\fB\-b\fP'\&.
+.TP
 \fB\-C\fP \fIcalfile\fP
 Explicitly specify a calendar file instead of the value of
 the \fBcalendar\-file\fP style or the the default \fB~/calendar\fP\&.
@@ -695,9 +699,10 @@ The location of the main calendar\&.  The default is \fB~/calendar\fP\&.
 .TP
 \fBdate\-format\fP
 A \fBstrftime\fP format string (see \fIstrftime\fP(3)) with the zsh
-extensions \fB%f\fP for a day of the month with no leading zero or space
-for single digits, and \fB%k\fP or \fB%l\fP for the hour of the day on the 24\-
-or 12\-hour clock, again with no leading zero or space for single digits\&.
+extensions providing various numbers with no leading zero or space
+if the number is a single digit as described for the
+\fB%D{\fP\fIstring\fP\fB}\fP prompt format in
+the section EXPANSION OF PROMPT SEQUENCES in \fIzshmisc\fP(1)\&.
 .RS
 .PP
 This is used for outputting dates in \fBcalendar\fP, both to support

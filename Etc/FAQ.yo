@@ -298,7 +298,7 @@ sect(On what machines will it run?)
 sect(What's the latest version?)
 
   Zsh 4.2.7 is the latest production version.  The latest development
-  version is 4.3.9; this contains support for multibyte character strings
+  version is 4.3.10; this contains support for multibyte character strings
   (such as UTF-8 locales).  All the main features for multibyte
   support are now in place, although there is some debugging work
   still to be done.
@@ -517,8 +517,8 @@ link(3.1)(31);
 tt(NO_HUP),
   tt(NO_NOMATCH), tt(NO_RCS), tt(NO_SHORT_LOOPS), tt(PROMPT_SUBST), \
 tt(RM_STAR_SILENT),
-  tt(POSIX_BUILTINS), tt(SH_FILE_EXPANSION), tt(SH_GLOB), \
-tt(SH_OPTION_LETTERS),
+  tt(POSIX_ALIASES), tt(POSIX_BUILTINS), tt(POSIX_IDENTIFIERS),
+  tt(SH_FILE_EXPANSION), tt(SH_GLOB), tt(SH_OPTION_LETTERS),
   tt(SH_WORD_SPLIT) (see question link(3.1)(31)) and tt(SINGLE_LINE_ZLE).
   Note that you can also disable any built-in commands which get in
   your way.  If invoked as `ksh', the shell will try to set suitable
@@ -541,6 +541,12 @@ tt(SH_OPTION_LETTERS),
         mytt($array) refers to the whole array, not tt($array[0]);
         braces are unnecessary: tt($a[1] == ${a[1]}), etc.
         Set the tt(KSH_ARRAYS) option for compatibility.
+    it()  Furthermore, individual elements of arrays in zsh are always
+        strings, not separate parameters.  This means, for example, you
+	can't `unset' an array element in zsh as you can in ksh; you
+	can only set it to the empty string, or shorten the array.
+	(You can unset elements of associative arrays in zsh because
+	those are a completely different type of object.)
     it()  Coprocesses are established by mytt(coproc); mytt(|&) behaves like
         csh.  Handling of coprocess file descriptors is also different.
     it()  In mytt(cmd1 && cmd2 &), only mytt(cmd2) instead of the whole
