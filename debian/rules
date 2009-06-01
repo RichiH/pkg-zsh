@@ -29,6 +29,7 @@ CONFIGFLAGS += --enable-fndir=/usr/share/$(package)/functions
 CONFIGFLAGS += --with-tcsetpgrp --with-term-lib="ncursesw"
 CONFIGFLAGS += --enable-cap --enable-pcre
 CONFIGFLAGS += --enable-readnullcmd=pager
+CONFIGFLAGS += --enable-custom-patchlevel=Debian
 
 STATICFLAGS = --disable-dynamic --enable-ldflags=-static
 ifneq (zsh-beta,$(package))
