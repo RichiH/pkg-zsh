@@ -1,3 +1,18 @@
+zsh (4.3.10-1) unstable; urgency=low
+
+  * New upstream version.
+    - Patch from Kalle Olavi Niemitalo to fix git write-tree
+      and git send-pack completions.  closes: #524754.
+    - Patch from Patrick Schoenfeld to complete .t files for
+      perl.  closes: #527369.
+    - Complete apt-get purge.  closes: #525215.
+  * Remove lintian override.
+  * Remove zsh-doc postinst/prerm invocations of install-docs.
+  * Move zsh-dbg to Section 'debug'.
+  * Set custom patchlevel ($ZSH_PATCHLEVEL) to "Debian".
+
+ -- Clint Adams <schizo@debian.org>  Mon, 01 Jun 2009 14:20:05 -0400
+
 zsh (4.3.9-5) unstable; urgency=low
 
   * Patch from Greg Klanderman to use device/inode/mtime for svn
