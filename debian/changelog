@@ -1,3 +1,10 @@
+zsh (4.3.10-2) unstable; urgency=medium
+
+  * Patch from Colin Watson to complete for for bzr switch.
+    closes: #531549.
+
+ -- Clint Adams <schizo@debian.org>  Tue, 02 Jun 2009 14:51:43 -0400
+
 zsh (4.3.10-1) unstable; urgency=low
 
   * New upstream version.
