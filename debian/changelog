@@ -1,3 +1,11 @@
+zsh (4.3.10-3) unstable; urgency=low
+
+  * Bump to Standards-Version 3.8.2.
+  * Patch from Vincent Bernat to add completion for bts fixed/notfixed.
+    closes: #536022.
+
+ -- Clint Adams <schizo@debian.org>  Fri, 10 Jul 2009 21:58:50 -0400
+
 zsh (4.3.10-2) unstable; urgency=medium
 
   * Patch from Colin Watson to complete for for bzr switch.
