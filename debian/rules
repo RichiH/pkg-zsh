@@ -140,8 +140,6 @@ ifeq (zsh,$(package))
 	$(INSTALL_FILE) obj/Doc/zsh.pdf debian/tmp-doc/usr/share/doc/$(package)-doc/
 endif
 
-	$(INSTALL_SCRIPT) debian/doc.prerm debian/tmp-doc/DEBIAN/prerm
-	$(INSTALL_SCRIPT) debian/doc.postinst debian/tmp-doc/DEBIAN/postinst
 	$(INSTALL_FILE) debian/copyright debian/tmp-doc/usr/share/doc/$(package)-doc/copyright
 	$(INSTALL_FILE) debian/changelog debian/tmp-doc/usr/share/doc/$(package)-doc/changelog.Debian
 	gzip -9frq debian/tmp-doc/usr/share/doc/$(package)-doc/changelog.Debian
