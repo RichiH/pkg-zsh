@@ -1,3 +1,12 @@
+zsh (4.3.10-4) unstable; urgency=low
+
+  * Cope with the fact that GCC on Debian GNU/kFreeBSD defines __GLIBC__
+    for some nonsensical reason.  closes: #536601.
+  * Update reportbug completion.  closes: #537461.
+  * Remove zsh-doc postinst and prerm.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 01 Aug 2009 00:29:15 -0400
+
 zsh (4.3.10-3) unstable; urgency=low
 
   * Bump to Standards-Version 3.8.2.
