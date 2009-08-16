@@ -1,3 +1,10 @@
+zsh (4.3.10-5) unstable; urgency=low
+
+  * Possible fix for an intermittent history segfault.  closes: #535232.
+  * Bump to Standards-Version 3.8.3.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 16 Aug 2009 19:43:33 -0400
+
 zsh (4.3.10-4) unstable; urgency=low
 
   * Cope with the fact that GCC on Debian GNU/kFreeBSD defines __GLIBC__
