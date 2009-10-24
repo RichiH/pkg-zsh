@@ -29,6 +29,7 @@ Package: zsh-doc
 Architecture: all
 Section: doc
 Priority: optional
+Depends: dpkg (>= 1.15.4) | install-info
 Conflicts: zsh (<< 3.1.6.pws9-1)
 Description: zsh documentation - info/HTML format
  Zsh is a UNIX command interpreter (shell) usable as an
