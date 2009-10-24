@@ -13,7 +13,6 @@ Architecture: any
 Section: shells
 Priority: optional
 Depends: ${shlibs:Depends}
-Conflicts: pdksh (<< 5.2.14-18)
 Recommends: ${shlibs:Recommends}
 Suggests: zsh-doc
 Description: A shell with lots of features
@@ -30,7 +29,6 @@ Architecture: all
 Section: doc
 Priority: optional
 Depends: dpkg (>= 1.15.4) | install-info
-Conflicts: zsh (<< 3.1.6.pws9-1)
 Description: zsh documentation - info/HTML format
  Zsh is a UNIX command interpreter (shell) usable as an
  interactive login shell and as a shell script command
@@ -47,7 +45,6 @@ Architecture: any
 Section: shells
 Priority: optional
 Depends: ${shlibs:Depends}, zsh
-Conflicts: zsh30-static (<< 3.0.8-5)
 Suggests: zsh-doc
 Description: A shell with lots of features (static link)
  Zsh is a UNIX command interpreter (shell) usable as an
