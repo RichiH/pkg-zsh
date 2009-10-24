@@ -1,3 +1,13 @@
+zsh (4.3.10-6) unstable; urgency=low
+
+  * Update mpc completion for version 0.17.
+  * Have zsh-doc depend on dpkg (>= 1.15.4) | install-info.
+  * Drop ancient Conflicts.
+  * Drop duplicate Priority fields.
+  * Drop alternative build dependency on tetex-bin.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 24 Oct 2009 01:20:39 -0400
+
 zsh (4.3.10-5) unstable; urgency=low
 
   * Possible fix for an intermittent history segfault.  closes: #535232.
