@@ -1,3 +1,11 @@
+zsh (4.3.10-10) unstable; urgency=low
+
+  * ZW#27565: sanity check numeric arguments to ulimit
+  * ZW#27566: add ulimit -c hard and immediate return on argument error
+    closes: #568678.
+
+ -- Clint Adams <schizo@debian.org>  Sat, 06 Feb 2010 18:47:41 -0500
+
 zsh (4.3.10-9) unstable; urgency=low
 
   * Patch from Chris Lamb to improve django completion.
