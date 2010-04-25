@@ -1,3 +1,14 @@
+zsh (4.3.10-12) unstable; urgency=low
+
+  * Do not do host completion for entries in ~/.ssh/known_hosts with
+    port numbers.
+  * Fix lsusb completino to work with uncompressed usb.ids.
+    closes: #579117.
+  * Add completion for axi-cache.
+  * Add completion for pbuilder.  ref: #570878.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 25 Apr 2010 19:05:36 -0400
+
 zsh (4.3.10-11) unstable; urgency=low
 
   * Switch build-dep back to libcap-dev since libcap2-dev is a virtual
