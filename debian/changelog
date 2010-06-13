@@ -1,3 +1,12 @@
+zsh (4.3.10-13) unstable; urgency=low
+
+  * Patch from Bernd Zeimetz to complete 'bts affects'.
+    closes: #579529.
+  * ZW#28006: make zgetcwd() fall back to pwd, only use "." if
+    setting pwd.  closes: #585660.
+
+ -- Clint Adams <schizo@debian.org>  Sun, 13 Jun 2010 10:35:03 -0400
+
 zsh (4.3.10-12) unstable; urgency=low
 
   * Do not do host completion for entries in ~/.ssh/known_hosts with
