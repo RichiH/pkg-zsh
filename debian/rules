@@ -191,7 +191,10 @@ endif
 	$(INSTALL_FILE) StartupFiles/* debian/tmp/usr/share/doc/$(package)/examples/.
 	$(INSTALL_FILE) Util/reporter debian/tmp/usr/share/doc/$(package)/examples/.
 
-	$(INSTALL_FILE) debian/examples/ssh_completion debian/examples/ssh_completion2 debian/tmp/usr/share/doc/$(package)/examples/.
+	$(INSTALL_FILE) debian/examples/ssh_completion \
+	                debian/examples/ssh_completion2 \
+	                debian/examples/carstenh.zshrc \
+	                debian/tmp/usr/share/doc/$(package)/examples/.
 ifneq (zsh-beta,$(package))
 	$(INSTALL_FILE) debian/examples/compctl.dpkg debian/examples/jhm.zshrc debian/tmp/usr/share/doc/$(package)/examples/old/.
 endif
