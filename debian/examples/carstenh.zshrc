@@ -52,9 +52,8 @@ PS1='%(!..%n@)%m:%~%# '
 
 
 # ### ########################################################################
-# ### The lines before this section equal the file zshrc.recommended.  All   #
-# ### features below this line are disabled, uncomment the according lines   #
-# ### to enable them.                                                        #
+# ### All features below this line are disabled, uncomment the according     #
+# ### lines to enable them.                                                  #
 # ### ########################################################################
 
 # ### Content:
@@ -296,28 +295,25 @@ PS1='%(!..%n@)%m:%~%# '
 # ### Start(), Restart(), Stop(), Reload(), Force-Reload():
 # ###             Start, restart, stop, reload or force-reload a System-V
 # ###             style init script.
-# for i in Start Restart Stop Reload Force-Reload; do
-#     eval $i'() { (
-#         builtin cd -q / || { echo >&2 "E: Could not chdir to /"; return 1; }
-#         env -i \
-#         PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
-#         "/etc/init.d/${1:?}" "${0:l}"
-#     ) }'
-# done ; unset i
+# eval {Start,Restart,Stop,Reload,Force-Reload}'() { (
+#     builtin cd -q / || { echo >&2 "E: Could not chdir to /"; return 1; }
+#     env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+#     "/etc/init.d/${1:?}" "${0:l}"
+# ) };'
 # compctl -g "/etc/init.d/*(:t)" Start Restart Stop Reload Force-Reload
 
 # ### accessed(), changed(), modified():
 # ###             List files which have been changed / modified / accessed
 # ###             within the last n days, n defaults to 1.
-# accessed()  { emulate -L zsh; print -l  *(a-${1:-1}); }
-# changed()   { emulate -L zsh; print -l  *(c-${1:-1}); }
-# modified()  { emulate -L zsh; print -l  *(m-${1:-1}); }
+# accessed()  { emulate -L zsh; print -l -- *(a-${1:-1}); }
+# changed()   { emulate -L zsh; print -l -- *(c-${1:-1}); }
+# modified()  { emulate -L zsh; print -l -- *(m-${1:-1}); }
 # ### accessed.(), changed.(), modified.():
-# ###             Same as above, but list files whose name start with
+# ###             Same as above, but list files whose name starts with
 # ###             a dot.
-# accessed.() { emulate -L zsh; print -l .*(a-${1:-1}); }
-# changed.()  { emulate -L zsh; print -l .*(c-${1:-1}); }
-# modified.() { emulate -L zsh; print -l .*(m-${1:-1}); }
+# accessed.() { emulate -L zsh; print -l -- .*(a-${1:-1}); }
+# changed.()  { emulate -L zsh; print -l -- .*(c-${1:-1}); }
+# modified.() { emulate -L zsh; print -l -- .*(m-${1:-1}); }
 
 # ### bk():       Make a backup of a file.
 # bk() {
@@ -326,7 +322,7 @@ PS1='%(!..%n@)%m:%~%# '
 
 # ### cdt():      Create temporary directory and chdir into it.
 # cdt() {
-#     [[ $# -eq 0 ] || printf 'Usage: %s\n' "$0";
+#     [[ $# -eq 0 ]] || printf 'Usage: %s\n' "$0";
 #     builtin cd "$(mktemp -t -d cdt.XXXXXXXXXX)";
 # }
 
@@ -393,4 +389,4 @@ PS1='%(!..%n@)%m:%~%# '
 # fi
 
 # ### Source ~/.zshrc.local if it exists and is readable:
-# [[ -r ~/.zshrc.local ]] && . ~/.zshrc.local
+# [[ -r ~/.zshrc.local ]] && . ~/.zshrc.local || true
