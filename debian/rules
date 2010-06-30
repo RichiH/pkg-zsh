@@ -240,7 +240,7 @@ endif
 	$(INSTALL_DIR) debian/tmp-dbg/usr/share/doc
 	ln -s zsh debian/tmp-dbg/usr/share/doc/$(package)-dbg
 
-	$(INSTALL_FILE) debian/zlogin debian/zlogout debian/zprofile debian/zshenv debian/zshrc debian/tmp/etc/$(package)/.
+	$(INSTALL_FILE) debian/zlogin debian/zlogout debian/zprofile debian/zshenv debian/zshrc debian/newuser.zshrc.recommended debian/tmp/etc/$(package)/.
 	sed -i -e 's,^local HELPDIR=.*,local HELPDIR=$${HELPDIR:-/usr/share/$(package)/help},;s,:-more,:-/usr/bin/pager,;' debian/tmp/usr/share/$(package)/functions/Misc/run-help
 
 	sed -i -e '1!b;s:^#!.*[ /]zsh:#!/bin/$(package):;s#/usr/local/bin#/usr/bin#;' `find debian/tmp/usr/share/$(package)/functions -type f`

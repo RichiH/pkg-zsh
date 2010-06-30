@@ -3,3 +3,4 @@
 /etc/zsh/zprofile
 /etc/zsh/zshenv
 /etc/zsh/zshrc
+/etc/zsh/newuser.zshrc.recommended
