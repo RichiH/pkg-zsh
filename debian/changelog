@@ -1,3 +1,14 @@
+zsh (4.3.10-14) unstable; urgency=low
+
+  * ZW#27804: don't hang on encountering invalid character in
+    incremental search.  closes: #574502.
+  * xmlsoft --nodtdattr completion thanks to Vincent Lefevre.
+    closes: #585812.
+  * Add example .zshrc from Carsten Hey.  closes: #587278.
+  * Add recommended .zshrc for users to choose on initial run.
+
+ -- Clint Adams <schizo@debian.org>  Wed, 30 Jun 2010 09:40:28 -0400
+
 zsh (4.3.10-13) unstable; urgency=low
 
   * Patch from Bernd Zeimetz to complete 'bts affects'.
