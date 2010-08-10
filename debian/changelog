@@ -1,3 +1,13 @@
+zsh (4.3.10-15) unstable; urgency=low
+
+  * Update carstenh.zshrc example.
+  * Patch from Александр Новиченко to fix recexact segfault in
+    completion.  closes: #590736.
+  * Bump to Standards-Version 3.9.1.
+  * Fix zsh-newuser-install newline placement.  closes: #591144.
+
+ -- Clint Adams <schizo@debian.org>  Tue, 10 Aug 2010 14:58:58 -0400
+
 zsh (4.3.10-14) unstable; urgency=low
 
   * ZW#27804: don't hang on encountering invalid character in
