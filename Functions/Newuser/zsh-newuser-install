@@ -955,10 +955,10 @@ You can:
 (1)  Continue to the main menu.
 "
   if [[ -f /etc/zsh/newuser.zshrc.recommended ]]; then
-    print -r "
-(2)  Populate your $zdmsg/.zshrc with the configuration recommended
+    print -r "(2)  Populate your $zdmsg/.zshrc with the configuration recommended
      by the system administrator and exit (you will need to edit
-     the file by hand, if so desired)."
+     the file by hand, if so desired).
+"
   fi
 
   read -k key$longprompt
@@ -1081,7 +1081,7 @@ ${install_state[options]:+  ($install_state[options].)}
     if [[ $1 != -f ]]; then
       print -r "The function will not be run in future, but you can run
 it yourself as follows:
-  autoload $myname
+  autoload -Uz $myname
   $myname -f
 
 The code added to $zdmsg/.zshrc is marked by the lines
