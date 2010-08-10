@@ -3,7 +3,7 @@ Section: shells
 Priority: optional
 Build-Depends: texinfo, groff-base, libncursesw5-dev, texi2html (>= 1.76-3), libcap-dev [!hurd-i386 !kfreebsd-i386 !kfreebsd-amd64], bsdmainutils, libpcre3-dev, texlive-latex-base
 Maintainer: Clint Adams <schizo@debian.org>
-Standards-Version: 3.8.4
+Standards-Version: 3.9.1
 Homepage: http://www.zsh.org/
 Vcs-Git: git://git.debian.org/git/private/schizo/zsh.git
 Vcs-Browser: http://git.debian.org/?p=private/schizo/zsh.git;a=summary
