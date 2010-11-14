@@ -1,3 +1,11 @@
+zsh (4.3.10-17) unstable; urgency=low
+
+  * Various git completion fixes.
+  * Complete filenames instead of packages for reportbug if the word
+    begins with a slash.  closes: #538090.
+
+ -- Clint Adams <clint@zsh.org>  Sun, 14 Nov 2010 15:39:46 -0500
+
 zsh (4.3.10-16) unstable; urgency=low
 
   * Add git-buildpackage completion from Felipe Sateler.
