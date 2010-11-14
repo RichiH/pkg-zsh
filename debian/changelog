@@ -2,7 +2,7 @@ zsh (4.3.10-16) unstable; urgency=low
 
   * Add git-buildpackage completion from Felipe Sateler.
     closes: #602962.
-  * setopt histignorealldups in the recommend user .zshrc.
+  * setopt histignorealldups in the recommended user .zshrc.
 
  -- Clint Adams <clint@zsh.org>  Thu, 11 Nov 2010 14:16:01 -0500
 
