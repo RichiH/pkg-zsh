@@ -1,5 +1,6 @@
 #compdef bug reportbug querybts
 
+local expl
 local _bug_commonargs _rb_commonargs
 
 _bug_commonargs=(
@@ -7,7 +8,7 @@ _bug_commonargs=(
   '-m[maintainer-only]'
   '-p[print to stdout instead of mail]'
   '-h[help]'
-  '*:package:_deb_packages installed'
+  '*:packageorfile:->pkgorfile'
 )
 
 _rb_commonargs=(
@@ -29,7 +30,7 @@ case "$service" in
       '-v[version]' \
       '-x[do not cc submitter]' \
       '-z[send configs verbatim]' \
-      "$_bug_commonargs[@]"
+      "$_bug_commonargs[@]" && return
   ;;
   reportbug)
     _arguments \
@@ -88,8 +89,12 @@ case "$service" in
       '(-d)--debug' \
       '--version' \
       '--license' \
+      '(--no-paranoid)--paranoid' \
+      '(--paranoid)--no-paranoid' \
+      '--body=:message body string' \
+      '--body-file=:message body file:_files' \
       "$_bug_commonargs[@]" \
-      "$_rb_commonargs[@]"
+      "$_rb_commonargs[@]" && return
   ;;
   querybts)
     _arguments \
@@ -98,6 +103,15 @@ case "$service" in
       '(-s --source)'{-s,--source}'[query for source packages rather than binary]' \
       '(-v --version)'{-v,--version}'[show version]' \
       "$_rb_commonargs[@]" \
-      '*:package:_deb_packages avail'
+      '*:package:_deb_packages avail' && return
   ;;
+esac
+
+case "$service:$state:${words[CURRENT]}" in
+	(reportbug:pkgorfile:/*)
+	  _wanted tag expl 'file' _files
+	;;
+	(reportbug:pkgorfile:*)
+  	  _wanted tax expl 'package' _deb_packages installed
+	;;
 esac
