@@ -634,6 +634,7 @@ insertlastword(char **args)
 	}
     }
 
+    fixsuffix();
     metafy_line();
     if (lastinsert && lastlen &&
 	lastpos <= zlemetacs &&
@@ -676,7 +677,7 @@ insertlastword(char **args)
 	 * a deleted word, because that can only have come
 	 * from a non-empty line.  I think.
 	 */
-	if (!(l = bufferwords(NULL, NULL, NULL))) {
+	if (!(l = bufferwords(NULL, NULL, NULL, 0))) {
 	    unmetafy_line();
 	    return 1;
 	}
@@ -1454,6 +1455,8 @@ doisearch(char **args, int dir, int pattern)
 	    memset(&mbs, 0, sizeof(mbs));
 	    while (charpos < end_pos) {
 		ret = mb_metacharlenconv_r(zlemetaline + charpos, &wc, &mbs);
+		if (ret <= 0) /* Unrecognised, treat as single char */
+		    ret = 1;
 		if (charpos <= pos && pos < charpos + ret)
 		    isearch_startpos = charcount;
 		charcount++;
@@ -1469,6 +1472,7 @@ doisearch(char **args, int dir, int pattern)
 	} else
 	    isearch_active = 0;
     ref:
+	zlecallhook("zle-isearch-update", NULL);
 	zrefresh();
 	if (!(cmd = getkeycmd()) || cmd == Th(z_sendbreak)) {
 	    int i;
@@ -1667,6 +1671,7 @@ doisearch(char **args, int dir, int pattern)
     }
     statusline = NULL;
     unmetafy_line();
+    zlecallhook("zle-isearch-exit", NULL);
     if (exitfn)
 	exitfn(zlenoargs);
     selectkeymap(okeymap, 1);
@@ -1942,7 +1947,7 @@ virepeatsearch(UNUSED(char **args))
 	    continue;
 	zt = GETZLETEXT(he);
 	if (zlinecmp(zt, zlemetaline) &&
-	    (*visrchstr == '^' ? strpfx(zt, visrchstr + 1) :
+	    (*visrchstr == '^' ? strpfx(visrchstr + 1, zt) :
 	     zlinefind(zt, 0, visrchstr, 1, 1) != 0)) {
 	    if (--n <= 0) {
 		unmetafy_line();

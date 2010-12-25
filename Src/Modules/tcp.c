@@ -446,12 +446,17 @@ bin_ztcp(char *nam, char **args, Options ops, UNUSED(int func))
 	}
 
 	if (targetfd) {
-	    redup(sess->fd,targetfd);
-	    sess->fd = targetfd;
+	    sess->fd = redup(sess->fd, targetfd);
 	}
 	else {
 	    /* move the fd since no one will want to read from it */
 	    sess->fd = movefd(sess->fd);
+	}
+
+	if (sess->fd == -1) {
+	    zwarnnam(nam, "cannot duplicate fd %d: %e", sess->fd, errno);
+	    tcp_close(sess);
+	    return 1;
 	}
 
 	setiparam("REPLY", sess->fd);
@@ -539,8 +544,11 @@ bin_ztcp(char *nam, char **args, Options ops, UNUSED(int func))
 	}
 
 	if (targetfd) {
-	    redup(rfd, targetfd);
-	    sess->fd = targetfd;
+	    sess->fd = redup(rfd, targetfd);
+	    if (sess->fd < 0) {
+		zerrnam(nam, "could not duplicate socket fd to %d: %e", targetfd, errno);
+		return 1;
+	    }
 	}
 	else {
 	    sess->fd = rfd;
@@ -654,8 +662,11 @@ bin_ztcp(char *nam, char **args, Options ops, UNUSED(int func))
 	else
 	{
 	    if (targetfd) {
-		redup(sess->fd, targetfd);
-		sess->fd = targetfd;
+		sess->fd = redup(sess->fd, targetfd);
+		if (sess->fd < 0) {
+		    zerrnam(nam, "could not duplicate socket fd to %d: %e", targetfd, errno);
+		    return 1;
+		}
 	    }
 
 	    setiparam("REPLY", sess->fd);

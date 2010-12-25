@@ -462,8 +462,9 @@ AC_PROG_GCC_TRADITIONAL     dnl Do we need -traditional flag for gcc.
 AC_C_CONST                  dnl Does compiler support `const'.
 
 dnl Default preprocessing on Mac OS X produces warnings
+dnl Mac OS X 10.6 (darwin10.x.x) does not need this.
 case "$host_os" in
-  darwin*) CPP="$CPP -traditional-cpp" ;;
+  darwin[[0-9]].*) CPP="$CPP -traditional-cpp" ;;
 esac
 
 fp_PROG_CC_STDC
@@ -1168,7 +1169,8 @@ AC_CHECK_FUNCS(strftime strptime mktime timelocal \
 	       htons ntohs \
 	       regcomp regexec regerror regfree \
 	       gdbm_open getxattr \
-	       realpath canonicalize_file_name)
+	       realpath canonicalize_file_name \
+	       symlink getcwd)
 AC_FUNC_STRCOLL
 
 if test x$enable_cap = xyes; then
@@ -1345,7 +1347,7 @@ dnl but then you can get a rather long list of files to test.
 dnl The backslash substitution is to persuade cygwin to cough up
 dnl slashes rather than doubled backslashes in the path.
 echo "#include <signal.h>" > nametmp.c
-sigfile_list="`$CPP nametmp.c |
+sigfile_list="`$CPP $CPPFLAGS nametmp.c |
 sed -n -e 's/^#line[ 	].*\"\(.*\)\"/\1/p' \
        -e 's/^#[ 	].*\"\(.*\)\"/\1/p' |
 sed 's/\\\\\\\\/\//g' |
@@ -1393,7 +1395,7 @@ dnl but then you can get a rather long list of files to test.
 dnl The backslash substitution is to persuade cygwin to cough up
 dnl slashes rather than doubled backslashes in the path.
 echo "#include <errno.h>" > nametmp.c
-errfile_list="`$CPP nametmp.c |
+errfile_list="`$CPP $CPPFLAGS nametmp.c |
 sed -n -e 's/^#line[ 	].*\"\(.*\)\"/\1/p' \
        -e 's/^#[ 	0-9].*\"\(.*\)\"/\1/p' |
 sed 's/\\\\\\\\/\//g' |
@@ -1462,7 +1464,7 @@ else
   echo "#include <$zsh_cv_path_curses_header>" >nametmp.c
 fi
 
-curses_list="`$CPP nametmp.c |
+curses_list="`$CPP $CPPFLAGS nametmp.c |
 sed -n -e 's/^#line[ 	].*\"\(.*\)\"/\1/p' \
        -e 's/^#[ 	0-9].*\"\(.*\)\"/\1/p' |
 sed 's/\\\\\\\\/\//g' |
@@ -1584,7 +1586,7 @@ AC_CACHE_CHECK(where the RLIMIT macros are located,zsh_cv_path_rlimit_h,
 [dnl Look at the output from the preprocessor.
 dnl Copied from the search for the signal names above.
 echo "#include <sys/resource.h>" >restmp.c
-resourcefile_list="`$CPP restmp.c |
+resourcefile_list="`$CPP $CPPFLAGS restmp.c |
 sed -n -e 's/^#line[ 	].*\"\(.*\)\"/\1/p' \
        -e 's/^#[ 	].*\"\(.*\)\"/\1/p' |
 sed 's/\\\\\\\\/\//g' |
@@ -1894,6 +1896,34 @@ AH_TEMPLATE([USE_GETCWD],
 [Define to 1 if you need to use the native getcwd.])
 if test x$zsh_cv_use_getcwd = xyes; then
   AC_DEFINE(USE_GETCWD)
+fi
+
+dnl GNU getcwd() can allocate as much space as necessary for a
+dnl directory name, preventing guessing games.
+AH_TEMPLATE([GETCWD_CALLS_MALLOC],
+[Define to 1 if getcwd() calls malloc to allocate memory.])
+if test x$ac_cv_func_getcwd = xyes; then
+  AC_CACHE_CHECK(whether getcwd calls malloc to allocate memory,
+  zsh_cv_getcwd_malloc,
+  [AC_TRY_RUN([
+#include <unistd.h>
+#include <string.h>
+int main() {
+    char buf[1024], *ptr1, *ptr2;
+    ptr1 = getcwd(buf, 1024);
+    ptr2 = getcwd(NULL, 0);
+    if (ptr1 && ptr2 && !strcmp(ptr1, ptr2)) {
+      return 0;
+    }
+    return 1;
+}
+],
+  zsh_cv_getcwd_malloc=yes,
+  zsh_cv_getcwd_malloc=no,
+  zsh_cv_getcwd_malloc=no)])
+  if test x$zsh_cv_getcwd_malloc = xyes; then
+    AC_DEFINE(GETCWD_CALLS_MALLOC)
+  fi
 fi
 
 dnl CHECK FOR setproctitle() FOR jobs -Z / ARGV0

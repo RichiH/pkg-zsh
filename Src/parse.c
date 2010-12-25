@@ -1199,6 +1199,10 @@ par_if(int *complex)
 	type = (xtok == IF ? WC_IF_IF : WC_IF_ELIF);
 	par_save_list(complex);
 	incmdpos = 1;
+	if (tok == ENDINPUT) {
+	    cmdpop();
+	    YYERRORV(oecused);
+	}
 	while (tok == SEPER)
 	    zshlex();
 	xtok = FI;
@@ -1542,7 +1546,7 @@ static int
 par_simple(int *complex, int nr)
 {
     int oecused = ecused, isnull = 1, r, argc = 0, p, isfunc = 0, sr = 0;
-    int c = *complex, nrediradd;
+    int c = *complex, nrediradd, assignments = 0;
 
     r = ecused;
     for (;;) {
@@ -1582,6 +1586,7 @@ par_simple(int *complex, int nr)
 	    ecstr(name);
 	    ecstr(str);
 	    isnull = 0;
+	    assignments = 1;
 	} else if (tok == ENVARRAY) {
 	    int oldcmdpos = incmdpos, n, type2;
 
@@ -1602,6 +1607,7 @@ par_simple(int *complex, int nr)
 		YYERROR(oecused);
 	    incmdpos = oldcmdpos;
 	    isnull = 0;
+	    assignments = 1;
 	} else
 	    break;
 	zshlex();
@@ -1663,7 +1669,11 @@ par_simple(int *complex, int nr)
 	    zlong oldlineno = lineno;
 	    int onp, so, oecssub = ecssub;
 
+	    /* Error if too many function definitions at once */
 	    if (!isset(MULTIFUNCDEF) && argc > 1)
+		YYERROR(oecused);
+	    /* Error if preceding assignments */
+	    if (assignments)
 		YYERROR(oecused);
 
 	    *complex = c;
@@ -1803,13 +1813,17 @@ par_redir(int *rp, char *idstring)
 	struct heredocs **hd;
 	int htype = type;
 
+	/*
+	 * Add two here for the string to remember the HERE
+	 * terminator in raw and munged form.
+	 */
 	if (idstring)
 	{
 	    type |= REDIR_VARID_MASK;
-	    ncodes = 4;
+	    ncodes = 6;
 	}
 	else
-	    ncodes = 3;
+	    ncodes = 5;
 
 	/* If we ever to change the number of codes, we have to change
 	 * the definition of WC_REDIR_WORDS. */
@@ -1818,10 +1832,16 @@ par_redir(int *rp, char *idstring)
 	ecbuf[r] = WCB_REDIR(type);
 	ecbuf[r + 1] = fd1;
 
+	/*
+	 * r + 2: the HERE string we recover
+	 * r + 3: the HERE document terminator, raw
+	 * r + 4: the HERE document terminator, munged
+	 */
 	if (idstring)
-	    ecbuf[r + 3] = ecstrcode(idstring);
+	    ecbuf[r + 5] = ecstrcode(idstring);
 
-	for (hd = &hdocs; *hd; hd = &(*hd)->next);
+	for (hd = &hdocs; *hd; hd = &(*hd)->next)
+	    ;
 	*hd = zalloc(sizeof(struct heredocs));
 	(*hd)->next = NULL;
 	(*hd)->type = htype;
@@ -1877,10 +1897,12 @@ par_redir(int *rp, char *idstring)
 
 /**/
 void
-setheredoc(int pc, int type, char *str)
+setheredoc(int pc, int type, char *str, char *termstr, char *munged_termstr)
 {
     ecbuf[pc] = WCB_REDIR(type | REDIR_FROM_HEREDOC_MASK);
     ecbuf[pc + 2] = ecstrcode(str);
+    ecbuf[pc + 3] = ecstrcode(termstr);
+    ecbuf[pc + 4] = ecstrcode(munged_termstr);
 }
 
 /*
@@ -2150,10 +2172,11 @@ par_cond_triple(char *a, char *b, char *c)
 	ecadd(ecnpats++);
     } else if ((b[0] == Equals || b[0] == '=') &&
                (b[1] == '~' || b[1] == Tilde) && !b[2]) {
+        /* We become an implicit COND_MODI but do not provide the first
+	 * item, it's skipped */
 	ecadd(WCB_COND(COND_REGEX, 0));
 	ecstr(a);
 	ecstr(c);
-	ecadd(ecnpats++);
     } else if (b[0] == '-') {
 	if ((t0 = get_cond_num(b + 1)) > -1) {
 	    ecadd(WCB_COND(t0 + COND_NT, 0));
@@ -2429,10 +2452,15 @@ ecgetredirs(Estate s)
 	r->type = WC_REDIR_TYPE(code);
 	r->fd1 = *s->pc++;
 	r->name = ecgetstr(s, EC_DUP, NULL);
-	if (WC_REDIR_FROM_HEREDOC(code))
+	if (WC_REDIR_FROM_HEREDOC(code)) {
 	    r->flags = REDIRF_FROM_HEREDOC;
-	else
+	    r->here_terminator = ecgetstr(s, EC_DUP, NULL);
+	    r->munged_here_terminator = ecgetstr(s, EC_DUP, NULL);
+	} else {
 	    r->flags = 0;
+	    r->here_terminator = NULL;
+	    r->munged_here_terminator = NULL;
+	}
 	if (WC_REDIR_VARID(code))
 	    r->varid = ecgetstr(s, EC_DUP, NULL);
 	else
@@ -2737,7 +2765,7 @@ write_dump(int dfd, LinkList progs, int map, int hlen, int tlen)
 	fdsetflags(pre, ((map ? FDF_MAP : 0) | other));
 	fdsetother(pre, tlen);
 	strcpy(fdversion(pre), ZSH_VERSION);
-	write(dfd, pre, FD_PRELEN * sizeof(wordcode));
+	write_loop(dfd, (char *)pre, FD_PRELEN * sizeof(wordcode));
 
 	for (node = firstnode(progs); node; incnode(node)) {
 	    wcf = (WCFunc) getdata(node);
@@ -2758,11 +2786,11 @@ write_dump(int dfd, LinkList progs, int map, int hlen, int tlen)
 	    head.flags = fdhbldflags(wcf->flags, (tail - n));
 	    if (other)
 		fdswap((Wordcode) &head, sizeof(head) / sizeof(wordcode));
-	    write(dfd, &head, sizeof(head));
+	    write_loop(dfd, (char *)&head, sizeof(head));
 	    tmp = strlen(n) + 1;
-	    write(dfd, n, tmp);
+	    write_loop(dfd, n, tmp);
 	    if ((tmp &= (sizeof(wordcode) - 1)))
-		write(dfd, &head, sizeof(wordcode) - tmp);
+		write_loop(dfd, (char *)&head, sizeof(wordcode) - tmp);
 	}
 	for (node = firstnode(progs); node; incnode(node)) {
 	    prog = ((WCFunc) getdata(node))->prog;
@@ -2770,7 +2798,7 @@ write_dump(int dfd, LinkList progs, int map, int hlen, int tlen)
 		   sizeof(wordcode) - 1) / sizeof(wordcode);
 	    if (other)
 		fdswap(prog->prog, (((Wordcode) prog->strs) - prog->prog));
-	    write(dfd, prog->prog, tmp * sizeof(wordcode));
+	    write_loop(dfd, (char *)prog->prog, tmp * sizeof(wordcode));
 	}
 	if (other)
 	    break;
@@ -3085,6 +3113,8 @@ load_dump_file(char *dump, struct stat *sbuf, int other, int len)
 	return;
 
     fd = movefd(fd);
+    if (fd == -1)
+	return;
 
     if ((addr = (Wordcode) mmap(NULL, mlen, PROT_READ, MAP_SHARED, fd, off)) ==
 	((Wordcode) -1)) {

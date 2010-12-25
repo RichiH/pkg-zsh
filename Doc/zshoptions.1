@@ -1,4 +1,4 @@
-.TH "ZSHOPTIONS" "1" "June 1, 2009" "zsh 4\&.3\&.10"
+.TH "ZSHOPTIONS" "1" "December 20, 2010" "zsh 4\&.3\&.11"
 .SH "NAME"
 zshoptions \- zsh options
 .\" Yodl file: Zsh/options.yo
@@ -65,9 +65,9 @@ the section `Filename Expansion\&')\&.
 When changing to a directory containing a path segment `\fB\&.\&.\fP\&' which would
 otherwise be treated as canceling the previous segment in the path (in
 other words, `\fBfoo/\&.\&.\fP\&' would be removed from the path, or if `\fB\&.\&.\fP' is
-the first part of the path, the last part of \fB$PWD\fP would be deleted),
-instead resolve the path to the physical directory\&.  This option is
-overridden by \fBCHASE_LINKS\fP\&.
+the first part of the path, the last part of the current working directory
+would be removed), instead resolve the path to the physical directory\&.
+This option is overridden by \fBCHASE_LINKS\fP\&.
 .RS
 .PP
 For example, suppose \fB/foo/bar\fP is a link to the directory \fB/alt/rod\fP\&.
@@ -82,6 +82,26 @@ Resolve symbolic links to their true values when changing directory\&.
 This also has the effect of \fBCHASE_DOTS\fP, i\&.e\&. a `\fB\&.\&.\fP\&' path segment
 will be treated as referring to the physical parent, even if the preceding
 path segment is a symbolic link\&.
+.TP
+\fBPOSIX_CD\fP
+Modifies the behaviour of \fBcd\fP, \fBchdir\fP and \fBpushd\fP commands
+to make them more compatible with the POSIX standard\&. The behaviour with
+the option unset is described in the documentation for the \fBcd\fP
+builtin in
+\fIzshbuiltins\fP(1)\&.
+If the option is set, the shell does not test for directories beneath
+the local directory (`\fB\&.\fP\&') until after all directories in \fBcdpath\fP
+have been tested\&.
+.RS
+.PP
+Also, if the option is set, the conditions under which the shell
+prints the new directory after changing to it are modified\&.  It is
+no longer restricted to interactive shells (although printing of
+the directory stack with \fBpushd\fP is still limited to interactive
+shells); and any use of a component of \fBCDPATH\fP, including a `\fB\&.\fP\&' but
+excluding an empty component that is otherwise treated as `\fB\&.\fP\&', causes
+the directory to be printed\&.
+.RE
 .TP
 \fBPUSHD_IGNORE_DUPS\fP
 Don\&'t push multiple copies of the same directory onto the directory stack\&.
@@ -300,7 +320,7 @@ Substitutions using the \fB:s\fP and \fB:&\fP history modifiers are performed
 with pattern matching instead of string matching\&.  This occurs wherever
 history modifiers are valid, including glob qualifiers and parameters\&.
 See
-the section Modifiers in \fIzshexp\fP(1)\&.
+the section Modifiers in \fIzshexpn\fP(1)\&.
 .TP
 \fBIGNORE_BRACES\fP (\fB\-I\fP) <S>
 Do not perform brace expansion\&.
@@ -429,7 +449,7 @@ and the duration (in seconds) to the history file\&.  The format of
 this prefixed data is:
 .RS
 .PP
-`\fB:\fP\fI<beginning time>\fP\fB:\fP\fI<elapsed seconds>\fP\fB:\fP\fI<command>\fP\&'\&.
+`\fB:\fP \fI<beginning time>\fP\fB:\fP\fI<elapsed seconds>\fP\fB;\fP\fI<command>\fP\&'\&.
 .RE
 .TP
 \fBHIST_ALLOW_CLOBBER\fP
@@ -474,11 +494,23 @@ if they are duplicates of the previous event\&.
 \fBHIST_IGNORE_SPACE\fP (\fB\-g\fP)
 Remove command lines from the history list when the first character on
 the line is a space, or when one of the expanded aliases contains a
-leading space\&.
+leading space\&.  Only normal aliases (not global or suffix aliases)
+have this behaviour\&.
 Note that the command lingers in the internal history until the next
 command is entered before it vanishes, allowing you to briefly reuse
 or edit the line\&.  If you want to make it vanish right away without
 entering another command, type a space and press return\&.
+.TP
+\fBHIST_LEX_WORDS\fP
+By default, shell history that is read in from files is split into
+words on all white space\&.  This means that arguments with quoted
+whitespace are not correctly handled, with the consequence that
+references to words in history lines that have been read from a file
+may be inaccurate\&.  When this option is set, words read in from a
+history file are divided up in a similar fashion to normal shell
+command line handling\&.  Although this produces more accurately delimited
+words, if the size of the history file is large this can be slow\&.  Trial
+and error is necessary to decide\&.
 .TP
 \fBHIST_NO_FUNCTIONS\fP
 Remove function definitions from the history list\&.
@@ -681,6 +713,14 @@ indicated by this option, and regardless of whether `\fB\&.\fP\&' or the current
 directory appear in the command search path\&.
 .RE
 .TP
+\fBPATH_SCRIPT\fP <K> <S>
+If this option is not set, a script passed as the first non\-option argument
+to the shell must contain the name of the file to open\&.  If this
+option is set, and the script does not specify a directory path,
+the script is looked for first in the current directory, then in the
+command path\&.  See
+the section INVOCATION in \fIzsh\fP(1)\&.
+.TP
 \fBPRINT_EIGHT_BIT\fP
 Print eight bit characters literally in completion lists, etc\&.
 This option is not necessary if your system correctly returns the
@@ -714,6 +754,8 @@ If a line ends with a backquote, and there are an odd number
 of backquotes on the line, ignore the trailing backquote\&.
 This is useful on some keyboards where the return key is
 too small, and the backquote key lies annoyingly close to it\&.
+As an alternative the variable \fBKEYBOARD_HACK\fP lets you choose the
+character to be removed\&.
 .PP
 .SS "Job Control"
 .PD 0
@@ -760,6 +802,33 @@ Allow job control\&.  Set by default in interactive shells\&.
 \fBNOTIFY\fP (\fB\-5\fP, ksh: \fB\-b\fP) <Z>
 Report the status of background jobs immediately, rather than
 waiting until just before printing a prompt\&.
+.TP
+\fBPOSIX_JOBS\fP <K> <S>
+This option makes job control more compliant with the POSIX standard\&.
+.RS
+.PP
+When the option is not set, the \fBMONITOR\fP option is unset on entry to
+subshells, so that job control is no longer active\&.  When the option is
+set, the \fBMONITOR\fP option and job control remain active in the
+subshell, but note that the subshell has no access to jobs in the parent
+shell\&.
+.PP
+When the option is not set, jobs put in the background or foreground
+with \fBbg\fP or \fBfg\fP are displayed with the same information that would
+be reported by \fBjobs\fP\&.  When the option is set, only the text is
+printed\&.  The output from \fBjobs\fP itself is not affected by the option\&.
+.PP
+When the option is not set, job information from the parent
+shell is saved for output within a subshell (for example, within a
+pipeline)\&.  When the option is set, the output of \fBjobs\fP is empty
+until a job is started within the subshell\&.
+.PP
+When the option is set, it becomes possible to use the \fBwait\fP builtin to
+wait for the last job started in the background (as given by \fB$!\fP) even
+if that job has already exited\&.  This works even if the option is turned
+on temporarily around the use of the \fBwait\fP builtin\&.
+.RE
+.RE
 .PP
 .SS "Prompting"
 .PD 0
@@ -903,7 +972,7 @@ fn() { setopt localtraps; trap \&'' INT; sleep 3; }\fP
 .fi
 .RE
 .PP
-will restore normally handling of \fBSIGINT\fP after the function exits\&.
+will restore normal handling of \fBSIGINT\fP after the function exits\&.
 .RE
 .TP
 \fBMULTI_FUNC_DEF\fP <Z>
@@ -929,6 +998,14 @@ component in `\fB08#77\fP\&' are always interpreted as decimal, regardless
 of leading zeroes\&.
 .RE
 .TP
+\fBSOURCE_TRACE\fP
+If set, zsh will print an informational message announcing the name of
+each file it loads\&.  The format of the output is similar to that
+for the \fBXTRACE\fP option, with the message \fB<sourcetrace>\fP\&.
+A file may be loaded by the shell itself when it
+starts up and shuts down (\fBStartup/Shutdown Files\fP) or by the use of
+the `\fBsource\fP\&' and `\fBdot\fP' builtin commands\&.
+.TP
 \fBTYPESET_SILENT\fP
 If this is unset, executing any of the `\fBtypeset\fP\&' family of
 commands with no options and a list of parameters that have no values
@@ -941,7 +1018,10 @@ the option is set\&.
 Print shell input lines as they are read\&.
 .TP
 \fBXTRACE\fP (\fB\-x\fP, ksh: \fB\-x\fP)
-Print commands and their arguments as they are executed\&.
+Print commands and their arguments as they are executed\&.  The
+output is proceded by the value of \fB$PS4\fP, formatted as described
+in
+the section EXPANSION OF PROMPT SEQUENCES in \fIzshmisc\fP(1)\&.
 .PP
 .SS "Shell Emulation"
 .PD 0
@@ -1108,6 +1188,35 @@ If multibyte character support is not compiled into the shell this option is
 ignored; all octets with the top bit set may be used in identifiers\&.
 This is non\-standard but is the traditional zsh behaviour\&.
 .RE
+.TP
+\fBPOSIX_STRINGS\fP <K> <S>
+This option affects processing of quoted strings\&.  Currently it only
+affects the behaviour of null characters, i\&.e\&. character 0 in the
+portable character set corresponding to US ASCII\&.
+.RS
+.PP
+When this option is not set, null characters embedded within strings
+of the form \fB$\&'\fP\fI\&.\&.\&.\fP\fB'\fP are treated as ordinary characters\&. The
+entire string is maintained within the shell and output to files where
+necessary, although owing to restrictions of the library interface
+the string is truncated at the null character in file names, environment
+variables, or in arguments to external programs\&.
+.PP
+When this option is set, the \fB$\&'\fP\fI\&.\&.\&.\fP\fB'\fP expression is truncated at
+the null character\&.  Note that remaining parts of the same string
+beyond the termination of the quotes are not trunctated\&.
+.PP
+For example, the command line argument \fBa$\&'b\e0c'd\fP is treated with
+the option off as the characters \fBa\fP, \fBb\fP, null, \fBc\fP, \fBd\fP,
+and with the option on as the characters \fBa\fP, \fBb\fP, \fBd\fP\&.
+.RE
+.TP
+\fBPOSIX_TRAPS\fP <K> <S>
+When the is option is set, the usual zsh behaviour of executing
+traps for \fBEXIT\fP on exit from shell functions is suppressed\&.
+In that case, manipulating \fBEXIT\fP traps always alters the global
+trap for exiting the shell; the \fBLOCAL_TRAPS\fP option is
+ignored for the \fBEXIT\fP trap\&.
 .TP
 \fBSH_FILE_EXPANSION\fP <K> <S>
 Perform filename expansion (e\&.g\&., ~ expansion) \fIbefore\fP

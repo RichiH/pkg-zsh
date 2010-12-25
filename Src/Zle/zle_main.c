@@ -84,6 +84,14 @@ int done;
 int mark;
 
 /*
+ * Status ($?) saved before function entry.  This is the
+ * status we need to use in prompts.
+ */
+
+/**/
+static int pre_zle_status;
+
+/*
  * Last character pressed.
  *
  * Depending how far we are with processing, the lastcharacter may
@@ -1107,7 +1115,6 @@ zleread(char **lp, char **rp, int flags, int context)
     char *s;
     int old_errno = errno;
     int tmout = getiparam("TMOUT");
-    Thingy initthingy;
 
 #if defined(HAVE_POLL) || defined(HAVE_SELECT)
     /* may not be set, but that's OK since getiparam() returns 0 == off */
@@ -1125,10 +1132,16 @@ zleread(char **lp, char **rp, int flags, int context)
 	pptbuf = unmetafy(promptexpand(lp ? *lp : NULL, 0, NULL, NULL,
 				       &pmpt_attr),
 			  &pptlen);
-	write(2, (WRITE_ARG_2_T)pptbuf, pptlen);
+	write_loop(2, pptbuf, pptlen);
 	free(pptbuf);
 	return shingetline();
     }
+    /*
+     * The current status is what we need if we are going
+     * to display a prompt.  We'll remember it here for
+     * use further in.
+     */
+    pre_zle_status = lastval;
 
     keytimeout = (time_t)getiparam("KEYTIMEOUT");
     if (!shout) {
@@ -1201,29 +1214,15 @@ zleread(char **lp, char **rp, int flags, int context)
 
     zrefresh();
 
-    if ((initthingy = rthingy_nocreate("zle-line-init"))) {
-	char *args[2];
-	args[0] = initthingy->nam;
-	args[1] = NULL;
-	execzlefunc(initthingy, args, 1);
-	unrefthingy(initthingy);
-	errflag = retflag = 0;
-    }
+    zlecallhook("zle-line-init", NULL);
 
     zlecore();
 
-    if (done && !exit_pending && !errflag &&
-	(initthingy = rthingy_nocreate("zle-line-finish"))) {
-	int saverrflag = errflag;
-	int savretflag = retflag;
-	char *args[2];
-	args[0] = initthingy->nam;
-	args[1] = NULL;
-	execzlefunc(initthingy, args, 1);
-	unrefthingy(initthingy);
-	errflag = saverrflag;
-	retflag = savretflag;
-    }
+    if (errflag)
+	setsparam("ZLE_LINE_ABORTED", zlegetline(NULL, NULL));
+
+    if (done && !exit_pending && !errflag)
+	zlecallhook("zle-line-finish", NULL);
 
     statusline = NULL;
     invalidatelist();
@@ -1756,6 +1755,14 @@ reexpandprompt(void)
     static int reexpanding;
 
     if (!reexpanding++) {
+	/*
+	 * If we're displaying a status in the prompt, it
+	 * needs to be the toplevel one, not the one from
+	 * any status set within the local zle function.
+	 */
+	int local_lastval = lastval;
+	lastval = pre_zle_status;
+
 	free(lpromptbuf);
 	lpromptbuf = promptexpand(raw_lp ? *raw_lp : NULL, 1, NULL, NULL,
 				  &pmpt_attr);
@@ -1763,6 +1770,7 @@ reexpandprompt(void)
 	free(rpromptbuf);
 	rpromptbuf = promptexpand(raw_rp ? *raw_rp : NULL, 1, NULL, NULL,
 				  &rpmpt_attr);
+	lastval = local_lastval;
     }
     reexpanding--;
 }

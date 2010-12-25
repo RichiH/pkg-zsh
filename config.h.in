@@ -93,6 +93,9 @@
 /* Define to 1 if multiple modules defining the same symbol are OK. */
 #undef DYNAMIC_NAME_CLASH_OK
 
+/* Define to 1 if getcwd() calls malloc to allocate memory. */
+#undef GETCWD_CALLS_MALLOC
+
 /* Define to 1 if the `getpgrp' function requires zero arguments. */
 #undef GETPGRP_VOID
 
@@ -222,6 +225,9 @@
 
 /* Define to 1 if you have the `getcchar' function. */
 #undef HAVE_GETCCHAR
+
+/* Define to 1 if you have the `getcwd' function. */
+#undef HAVE_GETCWD
 
 /* Define to 1 if you have the `getenv' function. */
 #undef HAVE_GETENV
@@ -758,6 +764,9 @@
 
 /* Define to 1 if you have RFS superroot directory. */
 #undef HAVE_SUPERROOT
+
+/* Define to 1 if you have the `symlink' function. */
+#undef HAVE_SYMLINK
 
 /* Define to 1 if you have the `sysconf' function. */
 #undef HAVE_SYSCONF

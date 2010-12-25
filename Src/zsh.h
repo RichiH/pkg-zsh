@@ -127,6 +127,10 @@ struct mathfunc {
 
 #define DEFAULT_IFS	" \t\n\203 "
 
+/* As specified in the standard (POSIX 2008) */
+
+#define DEFAULT_IFS_SH	" \t\n"
+
 /*
  * Character tokens.
  * These should match the characters in ztokens, defined in lex.c
@@ -210,7 +214,18 @@ enum {
      * in those cases where we need to represent a complete set.
      */
     QT_BACKTICK,
+    /*
+     * Single quotes, but the default is not to quote unless necessary.
+     * This is only useful as an argument to quotestring().
+     */
+    QT_SINGLE_OPTIONAL,
+    /*
+     * As QT_BACKSLASH, but a NULL string is shown as ''.
+     */
+    QT_BACKSLASH_SHOWNULL
 };
+
+#define QT_IS_SINGLE(x)	((x) == QT_SINGLE || (x) == QT_SINGLE_OPTIONAL)
 
 /*
  * Lexical tokens: unlike the character tokens above, these never
@@ -343,6 +358,15 @@ enum {
  * Entry used by output from the XTRACE option.
  */
 #define FDT_XTRACE		3
+/*
+ * Entry used for file locking.
+ */
+#define FDT_FLOCK		4
+/*
+ * As above, but the fd is not marked for closing on exec,
+ * so the shell can still exec the last process.
+ */
+#define FDT_FLOCK_EXEC		5
 #ifdef PATH_DEV_FD
 /*
  * Entry used by a process substition.
@@ -350,7 +374,7 @@ enum {
  * decremented on exit; we don't close entries greater than
  * FDT_PROC_SUBST except when closing everything.
  */
-#define FDT_PROC_SUBST		4
+#define FDT_PROC_SUBST		6
 #endif
 
 /* Flags for input stack */
@@ -573,6 +597,8 @@ struct redir {
     int fd1, fd2;
     char *name;
     char *varid;
+    char *here_terminator;
+    char *munged_here_terminator;
 };
 
 /* The number of fds space is allocated for  *
@@ -763,7 +789,9 @@ struct eccstr {
 #define WC_REDIR_FROM_HEREDOC(C) ((int)(wc_data(C) & REDIR_FROM_HEREDOC_MASK))
 #define WCB_REDIR(T)        wc_bld(WC_REDIR, (T))
 /* Size of redir is 4 words if REDIR_VARID_MASK is set, else 3 */
-#define WC_REDIR_WORDS(C)   (WC_REDIR_VARID(C) ? 4 : 3)
+#define WC_REDIR_WORDS(C)			\
+    ((WC_REDIR_VARID(C) ? 4 : 3) +		\
+     (WC_REDIR_FROM_HEREDOC(C) ? 2 : 0))
 
 #define WC_ASSIGN_TYPE(C)   (wc_data(C) & ((wordcode) 1))
 #define WC_ASSIGN_TYPE2(C)  ((wc_data(C) & ((wordcode) 2)) >> 1)
@@ -923,6 +951,7 @@ struct execstack {
     int badcshglob;
     pid_t cmdoutpid;
     int cmdoutval;
+    int use_cmdoutval;
     int trap_return;
     int trap_state;
     int trapisfunc;
@@ -1718,6 +1747,28 @@ struct nameddir {
 #define PRINT_WHENCE_FUNCDEF	(1<<9)
 #define PRINT_WHENCE_WORD	(1<<10)
 
+/* Return values from loop() */
+
+enum loop_return {
+    /* Loop executed OK */
+    LOOP_OK,
+    /* Loop executed no code */
+    LOOP_EMPTY,
+    /* Loop encountered an error */
+    LOOP_ERROR
+};
+
+/* Return values from source() */
+
+enum source_return {
+    /* Source ran OK */
+    SOURCE_OK = 0,
+    /* File not found */
+    SOURCE_NOT_FOUND = 1,
+    /* Internal error sourcing file */
+    SOURCE_ERROR = 2
+};
+
 /***********************************/
 /* Definitions for history control */
 /***********************************/
@@ -1771,6 +1822,40 @@ struct histent {
 #define HFILE_FAST		0x0010
 #define HFILE_NO_REWRITE	0x0020
 #define HFILE_USE_OPTIONS	0x8000
+
+/*
+ * Flags argument to bufferwords() used
+ * also by lexflags variable.
+ */
+/*
+ * Kick the lexer into special string-analysis
+ * mode without parsing.  Any bit set in
+ * the flags has this effect, but this
+ * has otherwise all the default effects.
+ */
+#define LEXFLAGS_ACTIVE		0x0001
+/*
+ * Being used from zle.  This is slightly more intrusive
+ * (=> grotesquely non-modular) than use from within
+ * the main shell, so it's a separate flag.
+ */
+#define LEXFLAGS_ZLE		0x0002
+/*
+ * Parse comments and treat each comment as a single string
+ */
+#define LEXFLAGS_COMMENTS_KEEP	0x0004
+/*
+ * Parse comments and strip them.
+ */
+#define LEXFLAGS_COMMENTS_STRIP	0x0008
+/*
+ * Either of the above
+ */
+#define LEXFLAGS_COMMENTS (LEXFLAGS_COMMENTS_KEEP|LEXFLAGS_COMMENTS_STRIP)
+/*
+ * Treat newlines as whitespace
+ */
+#define LEXFLAGS_NEWLINE	0x0010
 
 /******************************************/
 /* Definitions for programable completion */
@@ -1891,6 +1976,7 @@ enum {
     HISTIGNOREALLDUPS,
     HISTIGNOREDUPS,
     HISTIGNORESPACE,
+    HISTLEXWORDS,
     HISTNOFUNCTIONS,
     HISTNOSTORE,
     HISTREDUCEBLANKS,
@@ -1934,9 +2020,14 @@ enum {
     OCTALZEROES,
     OVERSTRIKE,
     PATHDIRS,
+    PATHSCRIPT,
     POSIXALIASES,
     POSIXBUILTINS,
+    POSIXCD,
     POSIXIDENTIFIERS,
+    POSIXJOBS,
+    POSIXSTRINGS,
+    POSIXTRAPS,
     PRINTEIGHTBIT,
     PRINTEXITVALUE,
     PRIVILEGED,
@@ -1967,6 +2058,7 @@ enum {
     SHWORDSPLIT,
     SINGLECOMMAND,
     SINGLELINEZLE,
+    SOURCETRACE,
     SUNKEYBOARDHACK,
     TRANSIENTRPROMPT,
     TRAPSASYNC,
