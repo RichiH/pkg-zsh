@@ -164,6 +164,22 @@ mod_export char *hptr;
 /**/
 mod_export char *chline;
 
+/*
+ * The current history line as seen by ZLE.
+ * We modify chline for use in other contexts while ZLE may
+ * still be running; ZLE should see only the top-level value.
+ *
+ * To avoid having to modify this every time we modify chline,
+ * we set it when we push the stack, and unset it when we pop
+ * the appropriate value off the stack.  As it's never modified
+ * on the stack this is the only maintainance we ever do on it.
+ * In return, ZLE has to check both zle_chline and (if that's
+ * NULL) chline to get the current value.
+ */
+
+/**/
+mod_export char *zle_chline;
+
 /* true if the last character returned by hgetc was an escaped bangchar *
  * if it is set and NOBANGHIST is unset hwaddc escapes bangchars        */
 
@@ -1155,7 +1171,7 @@ hend(Eprog prog)
     if (histactive & HA_NOINC) {
 	zfree(chline, hlinesz);
 	zfree(chwords, chwordlen*sizeof(short));
-	chline = NULL;
+	chline = hptr = NULL;
 	chwords = NULL;
 	histactive = 0;
 	unqueue_signals();
@@ -1178,7 +1194,7 @@ hend(Eprog prog)
     callhookfunc("zshaddhistory", hookargs, 1, &hookret);
     /* For history sharing, lock history file once for both read and write */
     hf = getsparam("HISTFILE");
-    if (isset(SHAREHISTORY) && lockhistfile(hf, 0)) {
+    if (isset(SHAREHISTORY) && !lockhistfile(hf, 0)) {
 	readhistfile(hf, 0, HFILE_USE_OPTIONS | HFILE_FAST);
 	curline.histnum = curhist+1;
     }
@@ -1270,7 +1286,7 @@ hend(Eprog prog)
     }
     zfree(chline, hlinesz);
     zfree(chwords, chwordlen*sizeof(short));
-    chline = NULL;
+    chline = hptr = NULL;
     chwords = NULL;
     histactive = 0;
     if (isset(SHAREHISTORY)? histfileIsLocked() : isset(INCAPPENDHISTORY))
@@ -2212,29 +2228,35 @@ readhistfile(char *fn, int err, int readflags)
     Histent he;
     time_t stim, ftim, tim = time(NULL);
     off_t fpos;
-    short *wordlist;
+    short *words;
     struct stat sb;
-    int nwordpos, nwordlist, bufsiz;
-    int searching, newflags, l;
+    int nwordpos, nwords, bufsiz;
+    int searching, newflags, l, ret, uselex;
 
     if (!fn && !(fn = getsparam("HISTFILE")))
 	return;
     if (readflags & HFILE_FAST) {
 	if (stat(unmeta(fn), &sb) < 0
 	 || (lasthist.fsiz == sb.st_size && lasthist.mtim == sb.st_mtime)
-	 || !lockhistfile(fn, 0))
+	 || lockhistfile(fn, 0))
 	    return;
 	lasthist.fsiz = sb.st_size;
 	lasthist.mtim = sb.st_mtime;
+    } else if ((ret = lockhistfile(fn, 1))) {
+	if (ret == 2) {
+	    zwarn("locking failed for %s: %e: reading anyway", fn, errno);
+	} else {
+	    zerr("locking failed for %s: %e", fn, errno);
+	    return;
+	}
     }
-    else if (!lockhistfile(fn, 1))
-	return;
     if ((in = fopen(unmeta(fn), "r"))) {
-	nwordlist = 64;
-	wordlist = (short *)zalloc(nwordlist*sizeof(short));
+	nwords = 64;
+	words = (short *)zalloc(nwords*sizeof(short));
 	bufsiz = 1024;
 	buf = zalloc(bufsiz);
 
+	pushheap();
 	if (readflags & HFILE_FAST && lasthist.text) {
 	    if (lasthist.fpos < lasthist.fsiz) {
 		fseek(in, lasthist.fpos, 0);
@@ -2313,29 +2335,111 @@ readhistfile(char *fn, int err, int readflags)
 	    else
 		he->ftim = ftim;
 
-	    /* Divide up the words.  We don't know how it lexes,
-	       so just look for white-space.
-	       */
+	    /*
+	     * Divide up the words.
+	     */
 	    nwordpos = 0;
 	    start = pt;
-	    do {
-		while (inblank(*pt))
-		    pt++;
-		if (*pt) {
-		    if (nwordpos >= nwordlist)
-			wordlist = (short *) realloc(wordlist,
-					(nwordlist += 64)*sizeof(short));
-		    wordlist[nwordpos++] = pt - start;
-		    while (*pt && !inblank(*pt))
-			pt++;
-		    wordlist[nwordpos++] = pt - start;
+	    uselex = isset(HISTLEXWORDS) && !(readflags & HFILE_FAST);
+	    if (uselex) {
+		/*
+		 * Attempt to do this using the lexer.
+		 */
+		LinkList wordlist = bufferwords(NULL, pt, NULL,
+						LEXFLAGS_COMMENTS_KEEP);
+		LinkNode wordnode;
+		int nwords_max;
+		nwords_max = 2 * countlinknodes(wordlist);
+		if (nwords_max > nwords) {
+		    nwords = nwords_max;
+		    words = (short *)realloc(words, nwords*sizeof(short));
 		}
-	    } while (*pt);
+		for (wordnode = firstnode(wordlist);
+		     wordnode;
+		     incnode(wordnode)) {
+		    char *word = getdata(wordnode);
+
+		    for (;;) {
+			/*
+			 * Not really an oddity: "\\\n" is
+			 * removed from input as if whitespace.
+			 */
+			if (inblank(*pt))
+			    pt++;
+			else if (pt[0] == '\\' && pt[1] == '\n')
+			    pt += 2;
+			else
+			    break;
+		    }
+		    if (!strpfx(word, pt)) {
+			int bad = 0;
+			/*
+			 * Oddity 1: newlines turn into semicolons.
+			 */
+			if (!strcmp(word, ";"))
+			    continue;
+			while (*pt) {
+			    if (!*word) {
+				bad = 1;
+				break;
+			    }
+			    /*
+			     * Oddity 2: !'s turn into |'s.
+			     */
+			    if (*pt == *word ||
+				(*pt == '!' && *word == '|')) {
+				pt++;
+				word++;
+			    } else {
+				bad = 1;
+				break;
+			    }
+			}
+			if (bad) {
+#ifdef DEBUG
+			    dputs(ERRMSG("bad wordsplit reading history: "
+					 "%s\nat: %s\nword: %s"),
+				  start, pt, word);
+#endif
+			    pt = start;
+			    nwordpos = 0;
+			    uselex = 0;
+			    break;
+			}
+		    }
+		    words[nwordpos++] = pt - start;
+		    pt += strlen(word);
+		    words[nwordpos++] = pt - start;
+		}
+		freeheap();
+	    }
+	    if (!uselex) {
+		do {
+		    for (;;) {
+			if (inblank(*pt))
+			    pt++;
+			else if (pt[0] == '\\' && pt[1] == '\n')
+			    pt += 2;
+			else
+			    break;
+		    }
+		    if (*pt) {
+			if (nwordpos >= nwords)
+			    words = (short *)
+				realloc(words, (nwords += 64)*sizeof(short));
+			words[nwordpos++] = pt - start;
+			while (*pt && !inblank(*pt))
+			    pt++;
+			words[nwordpos++] = pt - start;
+		    }
+		} while (*pt);
+
+	    }
 
 	    he->nwords = nwordpos/2;
 	    if (he->nwords) {
 		he->words = (short *)zalloc(nwordpos*sizeof(short));
-		memcpy(he->words, wordlist, nwordpos*sizeof(short));
+		memcpy(he->words, words, nwordpos*sizeof(short));
 	    } else
 		he->words = (short *)NULL;
 	    addhistnode(histtab, he->node.nam, he);
@@ -2348,9 +2452,10 @@ readhistfile(char *fn, int err, int readflags)
 	    zsfree(lasthist.text);
 	    lasthist.text = ztrdup(start);
 	}
-	zfree(wordlist, nwordlist*sizeof(short));
+	zfree(words, nwords*sizeof(short));
 	zfree(buf, bufsiz);
 
+	popheap();
 	fclose(in);
     } else if (err)
 	zerr("can't read history file %s", fn);
@@ -2361,6 +2466,11 @@ readhistfile(char *fn, int err, int readflags)
 #ifdef HAVE_FCNTL_H
 static int flock_fd = -1;
 
+/*
+ * Lock file using fcntl().  Return 0 on success, 1 on failure of
+ * locking mechanism, 2 on permanent failure (e.g. permission).
+ */
+
 static int
 flockhistfile(char *fn, int keep_trying)
 {
@@ -2368,7 +2478,7 @@ flockhistfile(char *fn, int keep_trying)
     int ctr = keep_trying ? 9 : 0;
 
     if ((flock_fd = open(unmeta(fn), O_RDWR | O_NOCTTY)) < 0)
-	return errno == ENOENT; /* "successfully" locked missing file */
+	return errno == ENOENT ? 0 : 2; /* "successfully" locked missing file */
 
     lck.l_type = F_WRLCK;
     lck.l_whence = SEEK_SET;
@@ -2379,12 +2489,12 @@ flockhistfile(char *fn, int keep_trying)
 	if (--ctr < 0) {
 	    close(flock_fd);
 	    flock_fd = -1;
-	    return 0;
+	    return 1;
 	}
 	sleep(1);
     }
 
-    return 1;
+    return 0;
 }
 #endif
 
@@ -2408,14 +2518,16 @@ savehistfile(char *fn, int err, int writeflags)
 	    lasthist.next_write_ev = he->histnum + 1;
 	    he = down_histent(he);
 	}
-	if (!he || !lockhistfile(fn, 0))
+	if (!he || lockhistfile(fn, 0))
 	    return;
 	if (histfile_linect > savehistsiz + savehistsiz / 5)
 	    writeflags &= ~HFILE_FAST;
     }
     else {
-	if (!lockhistfile(fn, 1))
+	if (lockhistfile(fn, 1)) {
+	    zerr("locking failed for %s: %e", fn, errno);
 	    return;
+	}
 	he = hist_ring->down;
     }
     if (writeflags & HFILE_USE_OPTIONS) {
@@ -2581,18 +2693,27 @@ savehistfile(char *fn, int err, int writeflags)
 
 static int lockhistct;
 
+/*
+ * Lock history file.  Return 0 on success, 1 on failure to lock this
+ * time, 2 on permanent failure (e.g. permission).
+ */
+
 /**/
 int
 lockhistfile(char *fn, int keep_trying)
 {
     int ct = lockhistct;
+    int ret = 0;
 
     if (!fn && !(fn = getsparam("HISTFILE")))
-	return 0;
+	return 1;
 
 #ifdef HAVE_FCNTL_H
-    if (isset(HISTFCNTLLOCK) && flock_fd < 0 && !flockhistfile(fn, keep_trying))
-	return 0;
+    if (isset(HISTFCNTLLOCK) && flock_fd < 0) {
+	ret = flockhistfile(fn, keep_trying);
+	if (ret)
+	    return ret;
+    }
 #endif
 
     if (!lockhistct++) {
@@ -2600,11 +2721,43 @@ lockhistfile(char *fn, int keep_trying)
 	int fd;
 	char *lockfile;
 #ifdef HAVE_LINK
+# ifdef HAVE_SYMLINK
+	char pidbuf[32], *lnk;
+# else
 	char *tmpfile;
+# endif
 #endif
 
 	lockfile = bicat(unmeta(fn), ".LOCK");
+	/* NOTE: only use symlink locking on a link()-having host in order to
+	 * avoid a change from open()-based locking to symlink()-based. */
 #ifdef HAVE_LINK
+# ifdef HAVE_SYMLINK
+	sprintf(pidbuf, "/pid-%ld/host-", (long)mypid);
+	lnk = bicat(pidbuf, getsparam("HOST"));
+	/* We'll abuse fd as our success flag. */
+	while ((fd = symlink(lnk, lockfile)) < 0) {
+	    if (errno != EEXIST) {
+		ret = 2;
+		break;
+	    } else if (!keep_trying) {
+		ret = 1;
+		break;
+	    }
+	    if (lstat(lockfile, &sb) < 0) {
+		if (errno == ENOENT)
+		    continue;
+		break;
+	    }
+	    if (time(NULL) - sb.st_mtime < 10)
+		sleep(1);
+	    else
+		unlink(lockfile);
+	}
+	if (fd < 0)
+	    lockhistct--;
+	free(lnk);
+# else /* not HAVE_SYMLINK */
 	if ((fd = gettempfile(fn, 0, &tmpfile)) >= 0) {
 	    FILE *out = fdopen(fd, "w");
 	    if (out) {
@@ -2613,15 +2766,16 @@ lockhistfile(char *fn, int keep_trying)
 	    } else
 		close(fd);
 	    while (link(tmpfile, lockfile) < 0) {
-		if (errno != EEXIST)
-		    zerr("failed to create hard link as lock file %s: %e",
-			 lockfile, errno);
-		else if (!keep_trying)
-		    ;
-		else if (stat(lockfile, &sb) < 0) {
+		if (errno != EEXIST) {
+		    ret = 2;
+		    break;
+		} else if (!keep_trying) {
+		    ret = 1;
+		    break;
+		} else if (lstat(lockfile, &sb) < 0) {
 		    if (errno == ENOENT)
 			continue;
-		    zerr("failed to stat lock file %s: %e", lockfile, errno);
+		    ret = 2;
 		} else {
 		    if (time(NULL) - sb.st_mtime < 10)
 			sleep(1);
@@ -2635,13 +2789,20 @@ lockhistfile(char *fn, int keep_trying)
 	    unlink(tmpfile);
 	    free(tmpfile);
 	}
+# endif /* not HAVE_SYMLINK */
 #else /* not HAVE_LINK */
 	while ((fd = open(lockfile, O_WRONLY|O_CREAT|O_EXCL, 0644)) < 0) {
-	    if (errno != EEXIST || !keep_trying)
+	    if (errno != EEXIST) {
+		ret = 2;
 		break;
-	    if (stat(lockfile, &sb) < 0) {
+	    } else if (!keep_trying) {
+		ret = 1;
+		break;
+	    }
+	    if (lstat(lockfile, &sb) < 0) {
 		if (errno == ENOENT)
 		    continue;
+		ret = 2;
 		break;
 	    }
 	    if (time(NULL) - sb.st_mtime < 10)
@@ -2670,9 +2831,10 @@ lockhistfile(char *fn, int keep_trying)
 	    flock_fd = -1;
 	}
 #endif
-	return 0;
+	DPUTS(ret == 0, "BUG: return value non-zero on locking error");
+	return ret;
     }
-    return 1;
+    return 0;
 }
 
 /* Unlock the history file if this corresponds to the last nested lock
@@ -2724,24 +2886,50 @@ histfileIsLocked(void)
  * which may not even be valid at this point.
  *
  * However, I'm so confused it could simply be baking Bakewell tarts.
+ *
+ * list may be an existing linked list (off the heap), in which case
+ * it will be appended to; otherwise it will be created.
+ *
+ * If buf is set we will take input from that string, else we will
+ * attempt to use ZLE directly in a way they tell you not to do on all
+ * programming courses.
+ *
+ * If index is non-NULL, and input is from a string in ZLE, *index
+ * is set to the position of the end of the current editor word.
+ *
+ * flags is passed directly to lexflags, see lex.c, except that
+ * we 'or' in the bit LEXFLAGS_ACTIVE to make sure the variable
+ * is set.
  */
 
 /**/
 mod_export LinkList
-bufferwords(LinkList list, char *buf, int *index)
+bufferwords(LinkList list, char *buf, int *index, int flags)
 {
     int num = 0, cur = -1, got = 0, ne = noerrs;
-    int owb = wb, owe = we, oadx = addedx, ozp = zleparse, onc = nocomments;
+    int owb = wb, owe = we, oadx = addedx, onc = nocomments;
     int ona = noaliases, ocs = zlemetacs, oll = zlemetall;
+    int forloop = 0, rcquotes = opts[RCQUOTES];
     char *p, *addedspaceptr;
 
     if (!list)
 	list = newlinklist();
 
-    zleparse = 1;
+    /*
+     * With RC_QUOTES, 'foo '' bar' comes back as 'foo ' bar'.  That's
+     * not very useful.  As nothing in here requires the fully processed
+     * string expression, we just turn the option off for this function.
+     */
+    opts[RCQUOTES] = 0;
     addedx = 0;
     noerrs = 1;
     lexsave();
+    lexflags = flags | LEXFLAGS_ACTIVE;
+    /*
+     * Are we handling comments?
+     */
+    nocomments = !(flags & (LEXFLAGS_COMMENTS_KEEP|
+			    LEXFLAGS_COMMENTS_STRIP));
     if (buf) {
 	int l = strlen(buf);
 
@@ -2760,7 +2948,6 @@ bufferwords(LinkList list, char *buf, int *index)
 	inpush(p, 0, NULL);
 	zlemetall = strlen(p) ;
 	zlemetacs = zlemetall + 1;
-	nocomments = 1;
     } else {
 	int ll, cs;
 	char *linein;
@@ -2806,25 +2993,84 @@ bufferwords(LinkList list, char *buf, int *index)
 	ctxtlex();
 	if (tok == ENDINPUT || tok == LEXERR)
 	    break;
-	if (tokstr && *tokstr) {
-	    untokenize((p = dupstring(tokstr)));
-	    if (ingetptr() == addedspaceptr + 1) {
-		/*
-		 * Whoops, we've read past the space we added, probably
-		 * because we were expecting a terminator but when
-		 * it didn't turn up we shrugged our shoulders thinking
-		 * it might as well be a complete string anyway.
-		 * So remove the space.  C.f. below for the case
-		 * where the missing terminator caused a lex error.
-		 * We use the same paranoid test.
-		 */
-		int plen = strlen(p);
-		if (plen && p[plen-1] == ' ' &&
-		    (plen == 1 || p[plen-2] != Meta))
-		    p[plen-1] = '\0';
+	if (tok == FOR) {
+	    /*
+	     * The way for (( expr1 ; expr2; expr3 )) is parsed is:
+	     * - a FOR tok
+	     * - a DINPAR with no tokstr
+	     * - two DINPARS with tokstr's expr1, expr2.
+	     * - a DOUTPAR with tokstr expr3.
+	     *
+	     * We'll decrement the variable forloop as we verify
+	     * the various stages.
+	     *
+	     * Don't ask me, ma'am, I'm just the programmer.
+	     */
+	    forloop = 5;
+	} else {
+	    switch (forloop) {
+	    case 1:
+		if (tok != DOUTPAR)
+		    forloop = 0;
+		break;
+
+	    case 2:
+	    case 3:
+	    case 4:
+		if (tok != DINPAR)
+		    forloop = 0;
+		break;
+
+	    default:
+		/* nothing to do */
+		break;
 	    }
-	    addlinknode(list, p);
-	    num++;
+	}
+	if (tokstr) {
+	    switch (tok) {
+	    case ENVARRAY:
+		p = dyncat(tokstr, "=(");
+		break;
+
+	    case DINPAR:
+		if (forloop) {
+		    /* See above. */
+		    p = dyncat(tokstr, ";");
+		} else {
+		    /*
+		     * Mathematical expressions analysed as a single
+		     * word.  That's correct because it behaves like
+		     * double quotes.  Whitespace in the middle is
+		     * similarly retained, so just add the parentheses back.
+		     */
+		    p = tricat("((", tokstr, "))");
+		}
+		break;
+
+	    default:
+		p = dupstring(tokstr);
+		break;
+	    }
+	    if (*p) {
+		untokenize(p);
+		if (ingetptr() == addedspaceptr + 1) {
+		    /*
+		     * Whoops, we've read past the space we added, probably
+		     * because we were expecting a terminator but when
+		     * it didn't turn up we shrugged our shoulders thinking
+		     * it might as well be a complete string anyway.
+		     * So remove the space.  C.f. below for the case
+		     * where the missing terminator caused a lex error.
+		     * We use the same paranoid test.
+		     */
+		    int plen = strlen(p);
+		    if (plen && p[plen-1] == ' ' &&
+			(plen == 1 || p[plen-2] != Meta))
+			p[plen-1] = '\0';
+		}
+		addlinknode(list, p);
+		num++;
+	    }
 	} else if (buf) {
 	    if (IS_REDIROP(tok) && tokfd >= 0) {
 		char b[20];
@@ -2837,7 +3083,17 @@ bufferwords(LinkList list, char *buf, int *index)
 		num++;
 	    }
 	}
-	if (!got && !zleparse) {
+	if (forloop) {
+	    if (forloop == 1) {
+		/*
+		 * Final "))" of for loop to match opening,
+		 * since we've just added the preceding element.
+ 		 */
+		addlinknode(list, dupstring("))"));
+	    }
+	    forloop--;
+	}
+	if (!got && !lexflags) {
 	    got = 1;
 	    cur = num - 1;
 	}
@@ -2862,7 +3118,6 @@ bufferwords(LinkList list, char *buf, int *index)
     strinend();
     inpop();
     errflag = 0;
-    zleparse = ozp;
     nocomments = onc;
     noerrs = ne;
     lexrestore();
@@ -2871,6 +3126,7 @@ bufferwords(LinkList list, char *buf, int *index)
     wb = owb;
     we = owe;
     addedx = oadx;
+    opts[RCQUOTES] = rcquotes;
 
     if (index)
 	*index = cur;

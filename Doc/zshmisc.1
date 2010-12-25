@@ -1,4 +1,4 @@
-.TH "ZSHMISC" "1" "June 1, 2009" "zsh 4\&.3\&.10"
+.TH "ZSHMISC" "1" "December 20, 2010" "zsh 4\&.3\&.11"
 .SH "NAME"
 zshmisc \- everything and then some
 .\" Yodl file: Zsh/grammar.yo
@@ -196,6 +196,12 @@ returns a nonzero exit status\&.
 \fIword\fP is expanded and treated as an arithmetic expression,
 which must evaluate to a number \fIn\fP\&.
 \fIlist\fP is then executed \fIn\fP times\&.
+.RS
+.PP
+The \fBrepeat\fP syntax is disabled by default when the
+shell starts in a mode emulating another shell\&.  It can be enabled
+with the command `\fBenable \-r repeat\fP\&'
+.RE
 .TP
 \fBcase\fP \fIword\fP \fBin\fP [ [\fB(\fP] \fIpattern\fP [ \fB|\fP \fIpattern\fP ] \&.\&.\&. \fB)\fP \fIlist\fP (\fB;;\fP|\fB;&\fP|\fB;|\fP) ] \&.\&.\&. \fBesac\fP
 Execute the \fIlist\fP associated with the first \fIpattern\fP
@@ -334,10 +340,10 @@ and return a zero exit status if it is true\&.
 See the section `Conditional Expressions\&'
 for a description of \fIexp\fP\&.
 .SH "ALTERNATE FORMS FOR COMPLEX COMMANDS"
-Many of zsh\&'s complex commands have alternate forms\&.  These particular
-versions of complex commands should be considered deprecated and may be
-removed in the future\&.  The versions in the previous section should be
-preferred instead\&.
+Many of zsh\&'s complex commands have alternate forms\&.  These are
+non\-standard and are likely not to be obvious even to seasoned shell
+programmers; they should not be used anywhere that portability of shell
+code is a concern\&.
 .PP
 The short versions below only work if \fIsublist\fP is of the form `\fB{\fP
 \fIlist\fP \fB}\fP\&' or if the \fBSHORT_LOOPS\fP option is set\&.  For the \fBif\fP,
@@ -439,12 +445,16 @@ expansion\&.
 An alias is defined using the \fBalias\fP builtin; global aliases
 may be defined using the \fB\-g\fP option to that builtin\&.
 .PP
-Alias expansion is done on the shell input before any
-other expansion except history expansion\&.  Therefore,
-if an alias is defined for the word \fBfoo\fP, alias expansion
-may be avoided by quoting part of the word, e\&.g\&. \fB\efoo\fP\&.
-But there is nothing to prevent an alias being defined
-for \fB\efoo\fP as well\&.
+Alias expansion is done on the shell input before any other expansion
+except history expansion\&.  Therefore, if an alias is defined for the
+word \fBfoo\fP, alias expansion may be avoided by quoting part of the
+word, e\&.g\&. \fB\efoo\fP\&.  Any form of quoting works, although there is
+nothing to prevent an alias being defined for the quoted form such as
+\fB\efoo\fP as well\&.  For use with completion, which would remove an
+initial backslash followed by a character that isn\&'t special, it may be
+more convenient to quote the word by starting with a single quote,
+i\&.e\&. \fB\&'foo\fP; completion will automatically add the trailing single
+quote\&.
 .PP
 There is a commonly encountered problem with aliases
 illustrated by the following code:
@@ -462,6 +472,35 @@ is too late to expand the newly defined alias\&.  This is often
 a problem in shell scripts, functions, and code executed with `\fBsource\fP\&'
 or `\fB\&.\fP\&'\&.  Consequently, use of functions rather than aliases is
 recommended in non\-interactive code\&.
+.PP
+Note also the unhelpful interaction of aliases and function definitions:
+.PP
+.RS
+.nf
+\fBalias func=\&'noglob func'
+func() {
+    echo Do something with $*
+}\fP
+.fi
+.RE
+.PP
+Because aliases are expanded in function defintions, this causes the
+following command to be executed:
+.PP
+.RS
+.nf
+\fBnoglob func() {
+    echo Do something with $*
+}\fP
+.fi
+.RE
+.PP
+which defines \fBnoglob\fP as well as \fBfunc\fP as functions with the
+body given\&.  To avoid this, either quote the name \fBfunc\fP or use the
+alternative function definition form `\fBfunction func\fP\&'\&.  Ensuring the
+alias is defined after the function works but is problematic if the
+code fragment might be re\-executed\&.
+.PP
 .SH "QUOTING"
 A character may be \fIquoted\fP (that is, made
 to stand for itself) by preceding it with a `\fB\e\fP\&'\&.
@@ -1805,13 +1844,31 @@ the \fBzsh/pcre\fP module, else it is tested as a POSIX
 extended regular expression using the \fBzsh/regex\fP module\&.
 Upon successful match, some variables will be updated; no variables
 are changed if the matching fails\&.
+.RS
+.PP
+If the option \fBBASH_REMATCH\fP is not set the scalar parameter
+\fBMATCH\fP is set to the substring that matched the pattern and
+the integer parameters \fBMBEGIN\fP and \fBMEND\fP to the index of the start
+and end, respectively, of the match in \fIstring\fP, such that if
+\fIstring\fP is contained in variable \fBvar\fP the expression
+`${var[$MBEGIN,$MEND]}\&' is identical to `$MATCH'\&.  The setting
+of the option \fBKSH_ARRAYS\fP is respected\&.  Likewise, the array
+\fBmatch\fP is set to the substrings that matched parenthesised
+subexpressions and the arrays \fBmbegin\fP and \fBmend\fP to the indices of
+the start and end positions, respectively, of the substrings within
+\fIstring\fP\&.  The arrays are not set if there were no parenthesised
+subexpresssions\&.  For example, if the string `\fBa short string\fP\&' is matched
+against the regular expression `\fBs(\&.\&.\&.)t\fP\&', then (assuming the
+option \fBKSH_ARRAYS\fP is not set) \fBMATCH\fP, \fBMBEGIN\fP
+and \fBMEND\fP are `\fBshort\fP\&', 3 and 7, respectively, while \fBmatch\fP,
+\fBmbegin\fP and \fBmend\fP are single entry arrays containing
+the strings `\fBhor\fP\&', `\fB4\fP' and `\fB6\fP, respectively\&.
+.PP
 If the option \fBBASH_REMATCH\fP is set the array
 \fBBASH_REMATCH\fP is set to the substring that matched the pattern
 followed by the substrings that matched parenthesised
-subexpressions within the pattern; otherwise, the scalar parameter
-\fBMATCH\fP is set to the substring that matched the pattern and
-and the array \fBmatch\fP to the substrings that matched parenthesised
-subexpressions\&.
+subexpressions within the pattern\&.
+.RE
 .TP
 \fIstring1\fP \fB<\fP \fIstring2\fP
 true if \fIstring1\fP comes before \fIstring2\fP
@@ -1853,9 +1910,10 @@ true if either \fIexp1\fP or \fIexp2\fP is true\&.
 .PP
 Normal shell expansion is performed on the \fIfile\fP, \fIstring\fP and
 \fIpattern\fP arguments, but the result of each expansion is constrained to
-be a single word, similar to the effect of double quotes\&.  However, pattern
-metacharacters are active for the \fIpattern\fP arguments; the patterns
-are the same as those used for filename generation, see
+be a single word, similar to the effect of double quotes\&.
+File generation is not performed on any form of argument to conditions\&.
+However, pattern metacharacters are active for the \fIpattern\fP arguments;
+the patterns are the same as those used for filename generation, see
 \fIzshexpn\fP(1), but there is no special behaviour
 of `\fB/\fP\&' nor initial dots, and no glob qualifiers are allowed\&.
 .PP
@@ -1970,16 +2028,17 @@ the latter case it will also work non\-interactively\&.
 \fB%d\fP
 .TP
 .PD
-\fB%/\fP
-Present working directory (\fB$PWD\fP)\&.  If an integer follows the `\fB%\fP\&',
-it specifies a number of trailing components of \fB$PWD\fP to show; zero
-means the whole path\&.  A negative integer specifies leading components,
-i\&.e\&. \fB%\-1d\fP specifies the first component\&.
+\fB/\fP
+Current working directory\&.  If an integer follows the `\fB%\fP\&',
+it specifies a number of trailing components of the current working
+directory to show; zero means the whole path\&.  A negative integer
+specifies leading components, i\&.e\&. \fB%\-1d\fP specifies the first component\&.
 .TP
 \fB%~\fP
-As \fB%d\fP and \fB%/\fP, but if \fB$PWD\fP has a named directory as its prefix,
-that part is replaced by a `\fB~\fP\&' followed by the name of the directory\&.
-If it starts with \fB$HOME\fP, that part is replaced by a `\fB~\fP\&'\&.
+As \fB%d\fP and \fB%/\fP, but if the current working directory has a named
+directory as its prefix, that part is replaced by a `\fB~\fP\&' followed by
+the name of the directory\&.  If it starts with \fB$HOME\fP, that part is
+replaced by a `\fB~\fP\&'\&.
 .TP
 .PD 0
 \fB%h\fP
@@ -2024,7 +2083,7 @@ names are not shown, instead the file where they were defined\&.
 .TP
 .PD
 \fB%C\fP
-Trailing component of \fB$PWD\fP\&.
+Trailing component of the current working directory\&.
 An integer may follow the `\fB%\fP\&' to get more than one component\&.
 Unless `\fB%C\fP\&' is used, tilde contraction is performed first\&.  These are
 deprecated as \fB%c\fP and \fB%C\fP are equivalent to \fB%1~\fP and \fB%1/\fP,

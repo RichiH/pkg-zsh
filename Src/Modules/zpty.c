@@ -396,11 +396,17 @@ newptycmd(char *nam, char *pname, char **args, int echo, int nblock)
 	setsparam("TTY", ztrdup(ttystrname));
 
 	opts[INTERACTIVE] = 0;
-	execode(prog, 1, 0);
+	execode(prog, 1, 0, "zpty");
 	stopmsg = 2;
 	zexit(lastval, 0);
     }
     master = movefd(master);
+    if (master == -1) {
+	zerrnam(nam, "cannot duplicate fd %d: %e", master, errno);
+	scriptname = oscriptname;
+	ineval = oineval;
+	return 1;
+    }
 
     p = (Ptycmd) zalloc(sizeof(*p));
 
@@ -423,6 +429,7 @@ newptycmd(char *nam, char *pname, char **args, int echo, int nblock)
 
     scriptname = oscriptname;
     ineval = oineval;
+
     return 0;
 }
 
@@ -579,7 +586,7 @@ ptyread(char *nam, Ptycmd cmd, char **args, int noblock, int mustmatch)
 	    seen = 1;
 	    if (++used == blen) {
 		if (!*args) {
-		    write(1, buf, used);
+		    write_loop(1, buf, used);
 		    used = 0;
 		} else {
 		    buf = hrealloc(buf, blen, blen << 1);
@@ -625,7 +632,7 @@ ptyread(char *nam, Ptycmd cmd, char **args, int noblock, int mustmatch)
     if (*args)
 	setsparam(*args, ztrdup(metafy(buf, used, META_HREALLOC)));
     else if (used)
-	write(1, buf, used);
+	write_loop(1, buf, used);
 
     if (seen && (!prog || matchok || !mustmatch))
 	return 0;

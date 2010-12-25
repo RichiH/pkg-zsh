@@ -176,6 +176,7 @@ struct globdata {
     int gd_gf_numsort;
     int gd_gf_follow, gd_gf_sorts, gd_gf_nsorts;
     struct globsort gd_gf_sortlist[MAX_SORTS];
+    LinkList gd_gf_pre_words;
 
     char *gd_glob_pre, *gd_glob_suf;
 };
@@ -206,6 +207,7 @@ static struct globdata curglobdata;
 #define gf_sorts      (curglobdata.gd_gf_sorts)
 #define gf_nsorts     (curglobdata.gd_gf_nsorts)
 #define gf_sortlist   (curglobdata.gd_gf_sortlist)
+#define gf_pre_words  (curglobdata.gd_gf_pre_words)
 
 /* and macros for save/restore */
 
@@ -1031,8 +1033,8 @@ static struct qual *dup_qual_list(struct qual *orig, struct qual **lastp)
 
 
 /*
- * Get a glob string for execution, following e or + qualifiers.
- * Pointer is character after the e or +.
+ * Get a glob string for execution, following e, P or + qualifiers.
+ * Pointer is character after the e, P or +.
  */
 
 /**/
@@ -1070,6 +1072,23 @@ glob_exec_string(char **sp)
 	*sp = tt;
 
     return sdata;
+}
+
+/*
+ * Insert a glob match.
+ * If there were words to prepend given by the P glob qualifier, do so.
+ */
+static void
+insert_glob_match(LinkList list, LinkNode next, char *data)
+{
+    if (gf_pre_words) {
+	LinkNode added;
+	for (added = firstnode(gf_pre_words); added; incnode(added)) {
+	    next = insertlinknode(list, next, dupstring(getdata(added)));
+	}
+    }
+
+    insertlinknode(list, next, data);
 }
 
 /* Main entry point to the globbing code for filename globbing. *
@@ -1122,6 +1141,7 @@ zglob(LinkList list, LinkNode np, int nountok)
     gf_noglobdots = unset(GLOBDOTS);
     gf_numsort = isset(NUMERICGLOBSORT);
     gf_sorts = gf_nsorts = 0;
+    gf_pre_words = NULL;
 
     /* Check for qualifiers */
     while (!nobareglob || isset(EXTENDEDGLOB)) {
@@ -1606,6 +1626,19 @@ zglob(LinkList list, LinkNode np, int nountok)
 		    end = v.end;
 		    break;
 		}
+		case 'P':
+		{
+		    char *tt;
+		    tt = glob_exec_string(&s);
+
+		    if (tt != NULL)
+		    {
+			if (!gf_pre_words)
+			    gf_pre_words = newlinklist();
+			addlinknode(gf_pre_words, tt);
+		    }
+		    break;
+		}
 		default:
 		    zerr("unknown file attribute");
 		    restore_globstate(saved);
@@ -1773,7 +1806,7 @@ zglob(LinkList list, LinkNode np, int nountok)
 			/* Parsed OK, execute for each name */
 			for (tmpptr = matchbuf; tmpptr < matchptr; tmpptr++) {
 			    setsparam("REPLY", ztrdup(tmpptr->name));
-			    execode(prog, 1, 0);
+			    execode(prog, 1, 0, "globsort");
 			    if (!errflag)
 				tmpptr->sortstrs[iexec] =
 				    dupstring(getsparam("REPLY"));
@@ -1816,14 +1849,14 @@ zglob(LinkList list, LinkNode np, int nountok)
 	    matchptr = matchbuf + matchct - first - 1;
 	    while (end-- > 0) {
 		/* insert matches in the arg list */
-		insertlinknode(list, node, matchptr->name);
+		insert_glob_match(list, node, matchptr->name);
 		matchptr--;
 	    }
 	} else {
 	    matchptr = matchbuf + matchct - first - end;
 	    while (end-- > 0) {
 		/* insert matches in the arg list */
-		insertlinknode(list, node, matchptr->name);
+		insert_glob_match(list, node, matchptr->name);
 		matchptr++;
 	    }
 	}
@@ -1891,14 +1924,29 @@ hasbraces(char *str)
 	case Inbrace:
 	    if (!lbr) {
 		lbr = str - 1;
+		if (*str == '-')
+		    str++;
 		while (idigit(*str))
 		    str++;
 		if (*str == '.' && str[1] == '.') {
-		    str++;
-		    while (idigit(*++str));
+		    str++; str++;
+		    if (*str == '-')
+			str++;
+		    while (idigit(*str))
+			str++;
 		    if (*str == Outbrace &&
 			(idigit(lbr[1]) || idigit(str[-1])))
 			return 1;
+		    else if (*str == '.' && str[1] == '.') {
+			str++; str++;
+			if (*str == '-')
+			    str++;
+			while (idigit(*str))
+			    str++;
+			if (*str == Outbrace &&
+			    (idigit(lbr[1]) || idigit(str[-1])))
+			    return 1;
+		    }
 		}
 	    } else {
 		char *s = --str;
@@ -2028,18 +2076,20 @@ xpandbraces(LinkList list, LinkNode *np)
 	} else if (bc == 1) {
 	    if (*str2 == Comma)
 		++comma;	/* we have {foo,bar} */
-	    else if (*str2 == '.' && str2[1] == '.')
+	    else if (*str2 == '.' && str2[1] == '.') {
 		dotdot++;	/* we have {num1..num2} */
+		++str2;
+	    }
 	}
     DPUTS(bc, "BUG: unmatched brace in xpandbraces()");
     if (!comma && dotdot) {
 	/* Expand range like 0..10 numerically: comma or recursive
 	   brace expansion take precedence. */
-	char *dots, *p;
+	char *dots, *p, *dots2 = NULL;
 	LinkNode olast = last;
 	/* Get the first number of the range */
-	int rstart = zstrtol(str+1,&dots,10), rend = 0, err = 0, rev = 0;
-	int wid1 = (dots - str) - 1, wid2 = (str2 - dots) - 2;
+	int rstart = zstrtol(str+1,&dots,10), rend = 0, err = 0, rev = 0, rincr = 1;
+	int wid1 = (dots - str) - 1, wid2 = (str2 - dots) - 2, wid3 = 0;
 	int strp = str - str3;
 
 	if (dots == str + 1 || *dots != '.' || dots[1] != '.')
@@ -2047,23 +2097,53 @@ xpandbraces(LinkList list, LinkNode *np)
 	else {
 	    /* Get the last number of the range */
 	    rend = zstrtol(dots+2,&p,10);
-	    if (p == dots+2 || p != str2)
+	    if (p == dots+2)
 		err++;
+	    /* check for {num1..num2..incr} */
+	    if (p != str2) {
+		wid2 = (p - dots) - 2;
+		dots2 = p;
+		if (dotdot == 2 && *p == '.' && p[1] == '.') {
+		    rincr = zstrtol(p+2, &p, 10);
+		    wid3 = p - dots2 - 2;
+		    if (p != str2 || !rincr)
+			err++;
+		} else
+		    err++;
+	    }
 	}
 	if (!err) {
 	    /* If either no. begins with a zero, pad the output with   *
-	     * zeroes. Otherwise, choose a min width to suppress them. */
-	    int minw = (str[1] == '0') ? wid1 : (dots[2] == '0' ) ? wid2 :
-		(wid2 > wid1) ? wid1 : wid2;
+	     * zeroes. Otherwise, set min width to 0 to suppress them.
+	     * str+1 is the first number in the range, dots+2 the last,
+	     * and dots2+2 is the increment if that's given. */
+	    /* TODO: sorry about this */
+	    int minw = (str[1] == '0' || (str[1] == '-' && str[2] == '0'))
+		       ? wid1
+		       : (dots[2] == '0' || (dots[2] == '-' && dots[3] == '0'))
+		       ? wid2
+		       : (dots2 && (dots2[2] == '0' ||
+				    (dots2[2] == '-' && dots2[3] == '0')))
+		       ? wid3
+		       : 0;
+	    if (rincr < 0) {
+		/* Handle negative increment */
+		rincr = -rincr;
+		rev = !rev;
+	    }
 	    if (rstart > rend) {
 		/* Handle decreasing ranges correctly. */
 		int rt = rend;
 		rend = rstart;
 		rstart = rt;
-		rev = 1;
+		rev = !rev;
+	    } else if (rincr > 1) {
+		/* when incr > 1, range is aligned to the highest number of str1,
+		 * compensate for this so that it is aligned to the first number */
+		rend -= (rend - rstart) % rincr;
 	    }
 	    uremnode(list, node);
-	    for (; rend >= rstart; rend--) {
+	    for (; rend >= rstart; rend -= rincr) {
 		/* Node added in at end, so do highest first */
 		p = dupstring(str3);
 		sprintf(p + strp, "%0*d", minw, rend);
@@ -3464,7 +3544,7 @@ qualsheval(char *name, UNUSED(struct stat *buf), UNUSED(off_t days), char *str)
 	unsetparam("reply");
 	setsparam("REPLY", ztrdup(name));
 
-	execode(prog, 1, 0);
+	execode(prog, 1, 0, "globqual");
 
 	ret = lastval;
 	errflag = ef;
@@ -3483,6 +3563,7 @@ qualsheval(char *name, UNUSED(struct stat *buf), UNUSED(off_t days), char *str)
 		inserts = tmparr;
 	    }
 	}
+
 	return !ret;
     }
     return 0;

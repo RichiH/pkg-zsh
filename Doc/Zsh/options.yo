@@ -93,9 +93,9 @@ item(tt(CHASE_DOTS))(
 When changing to a directory containing a path segment `tt(..)' which would
 otherwise be treated as canceling the previous segment in the path (in
 other words, `tt(foo/..)' would be removed from the path, or if `tt(..)' is
-the first part of the path, the last part of tt($PWD) would be deleted),
-instead resolve the path to the physical directory.  This option is
-overridden by tt(CHASE_LINKS).
+the first part of the path, the last part of the current working directory
+would be removed), instead resolve the path to the physical directory.
+This option is overridden by tt(CHASE_LINKS).
 
 For example, suppose tt(/foo/bar) is a link to the directory tt(/alt/rod).
 Without this option set, `tt(cd /foo/bar/..)' changes to tt(/foo); with it
@@ -114,6 +114,30 @@ Resolve symbolic links to their true values when changing directory.
 This also has the effect of tt(CHASE_DOTS), i.e. a `tt(..)' path segment
 will be treated as referring to the physical parent, even if the preceding
 path segment is a symbolic link.
+)
+pindex(POSIX_CD)
+pindex(POSIXCD)
+pindex(NO_POSIX_CD)
+pindex(NOPOSIXCD)
+cindex(CDPATH, order of checking)
+item(tt(POSIX_CD))(
+Modifies the behaviour of tt(cd), tt(chdir) and tt(pushd) commands
+to make them more compatible with the POSIX standard. The behaviour with
+the option unset is described in the documentation for the tt(cd)
+builtin in
+ifzman(zmanref(zshbuiltins))\
+ifnzman(noderef(Shell Builtin Commands)).
+If the option is set, the shell does not test for directories beneath
+the local directory (`tt(.)') until after all directories in tt(cdpath)
+have been tested.
+
+Also, if the option is set, the conditions under which the shell
+prints the new directory after changing to it are modified.  It is
+no longer restricted to interactive shells (although printing of
+the directory stack with tt(pushd) is still limited to interactive
+shells); and any use of a component of tt(CDPATH), including a `tt(.)' but
+excluding an empty component that is otherwise treated as `tt(.)', causes
+the directory to be printed.
 )
 pindex(PUSHD_IGNORE_DUPS)
 pindex(NO_PUSHD_IGNORE_DUPS)
@@ -513,7 +537,7 @@ Substitutions using the tt(:s) and tt(:&) history modifiers are performed
 with pattern matching instead of string matching.  This occurs wherever
 history modifiers are valid, including glob qualifiers and parameters.
 See
-ifzman(the section Modifiers in zmanref(zshexp))\
+ifzman(the section Modifiers in zmanref(zshexpn))\
 ifnzman(noderef(Modifiers)).
 )
 pindex(IGNORE_BRACES)
@@ -722,7 +746,7 @@ Save each command's beginning timestamp (in seconds since the epoch)
 and the duration (in seconds) to the history file.  The format of
 this prefixed data is:
 
-`tt(:)var(<beginning time>)tt(:)var(<elapsed seconds>)tt(:)var(<command>)'.
+`tt(:) var(<beginning time>)tt(:)var(<elapsed seconds>)tt(;)var(<command>)'.
 )
 pindex(HIST_ALLOW_CLOBBER)
 pindex(NO_HIST_ALLOW_CLOBBER)
@@ -805,11 +829,27 @@ cindex(history, ignoring spaces)
 item(tt(HIST_IGNORE_SPACE) (tt(-g)))(
 Remove command lines from the history list when the first character on
 the line is a space, or when one of the expanded aliases contains a
-leading space.
+leading space.  Only normal aliases (not global or suffix aliases)
+have this behaviour.
 Note that the command lingers in the internal history until the next
 command is entered before it vanishes, allowing you to briefly reuse
 or edit the line.  If you want to make it vanish right away without
 entering another command, type a space and press return.
+)
+pindex(HIST_LEX_WORDS)
+pindex(NO_HIST_LEX_WORDS)
+pindex(HISTLEXWORDS)
+pindex(NOHISTLEXWORDS)
+item(tt(HIST_LEX_WORDS))(
+By default, shell history that is read in from files is split into
+words on all white space.  This means that arguments with quoted
+whitespace are not correctly handled, with the consequence that
+references to words in history lines that have been read from a file
+may be inaccurate.  When this option is set, words read in from a
+history file are divided up in a similar fashion to normal shell
+command line handling.  Although this produces more accurately delimited
+words, if the size of the history file is large this can be slow.  Trial
+and error is necessary to decide.
 )
 pindex(HIST_NO_FUNCTIONS)
 pindex(NO_HIST_NO_FUNCTIONS)
@@ -1114,6 +1154,20 @@ executables specified in this form.  This takes place before any search
 indicated by this option, and regardless of whether `tt(.)' or the current
 directory appear in the command search path.
 )
+pindex(PATH_SCRIPT)
+pindex(NO_PATH_SCRIPT)
+pindex(PATHSCRIPT)
+pindex(NOPATHSCRIPT)
+cindex(path search, for script argument to shell)
+item(tt(PATH_SCRIPT) <K> <S>)(
+If this option is not set, a script passed as the first non-option argument
+to the shell must contain the name of the file to open.  If this
+option is set, and the script does not specify a directory path,
+the script is looked for first in the current directory, then in the
+command path.  See
+ifnzman(noderef(Invocation))\
+ifzman(the section INVOCATION in zmanref(zsh)).
+)
 pindex(PRINT_EIGHT_BIT)
 pindex(NO_PRINT_EIGHT_BIT)
 pindex(PRINTEIGHTBIT)
@@ -1185,6 +1239,8 @@ If a line ends with a backquote, and there are an odd number
 of backquotes on the line, ignore the trailing backquote.
 This is useful on some keyboards where the return key is
 too small, and the backquote key lies annoyingly close to it.
+As an alternative the variable tt(KEYBOARD_HACK) lets you choose the
+character to be removed.
 )
 enditem()
 
@@ -1273,6 +1329,38 @@ cindex(notification of background jobs)
 item(tt(NOTIFY) (tt(-5), ksh: tt(-b)) <Z>)(
 Report the status of background jobs immediately, rather than
 waiting until just before printing a prompt.
+)
+pindex(POSIX_JOBS)
+pindex(POSIXJOBS)
+pindex(NO_POSIX_JOBS)
+pindex(NOPOSIXJOBS)
+cindex(bg, output in POSIX format)
+cindex(fg, output in POSIX format)
+cindex(job control, in subshell)
+cindex(jobs, output in subshell)
+item(tt(POSIX_JOBS) <K> <S>)(
+This option makes job control more compliant with the POSIX standard.
+
+When the option is not set, the tt(MONITOR) option is unset on entry to
+subshells, so that job control is no longer active.  When the option is
+set, the tt(MONITOR) option and job control remain active in the
+subshell, but note that the subshell has no access to jobs in the parent
+shell.
+
+When the option is not set, jobs put in the background or foreground
+with tt(bg) or tt(fg) are displayed with the same information that would
+be reported by tt(jobs).  When the option is set, only the text is
+printed.  The output from tt(jobs) itself is not affected by the option.
+
+When the option is not set, job information from the parent
+shell is saved for output within a subshell (for example, within a
+pipeline).  When the option is set, the output of tt(jobs) is empty
+until a job is started within the subshell.
+
+When the option is set, it becomes possible to use the tt(wait) builtin to
+wait for the last job started in the background (as given by tt($!)) even
+if that job has already exited.  This works even if the option is turned
+on temporarily around the use of the tt(wait) builtin.
 )
 enditem()
 
@@ -1491,7 +1579,7 @@ example(unsetopt localtraps
 trap - INT
 fn+LPAR()RPAR() { setopt localtraps; trap '' INT; sleep 3; })
 
-will restore normally handling of tt(SIGINT) after the function exits.
+will restore normal handling of tt(SIGINT) after the function exits.
 )
 pindex(MULTI_FUNC_DEF)
 pindex(NO_MULTI_FUNC_DEF)
@@ -1526,6 +1614,18 @@ Sequences of digits indicating a numeric base such as the `tt(08)'
 component in `tt(08#77)' are always interpreted as decimal, regardless
 of leading zeroes.
 )
+pindex(SOURCE_TRACE)
+pindex(NO_SOURCE_TRACE)
+pindex(SOURCETRACE)
+pindex(NOSOURCETRACE)
+item(tt(SOURCE_TRACE))(
+If set, zsh will print an informational message announcing the name of
+each file it loads.  The format of the output is similar to that
+for the tt(XTRACE) option, with the message tt(<sourcetrace>).
+A file may be loaded by the shell itself when it
+starts up and shuts down (tt(Startup/Shutdown Files)) or by the use of
+the `tt(source)' and `tt(dot)' builtin commands.
+)
 pindex(TYPESET_SILENT)
 pindex(NO_TYPESET_SILENT)
 pindex(TYPESETSILENT)
@@ -1552,7 +1652,11 @@ pindex(NOXTRACE)
 cindex(tracing, of commands)
 cindex(commands, tracing)
 item(tt(XTRACE) (tt(-x), ksh: tt(-x)))(
-Print commands and their arguments as they are executed.
+Print commands and their arguments as they are executed.  The
+output is proceded by the value of tt($PS4), formatted as described
+in
+ifzman(the section EXPANSION OF PROMPT SEQUENCES in zmanref(zshmisc))\
+ifnzman(noderef(Prompt Expansion)).
 )
 enditem()
 
@@ -1786,6 +1890,46 @@ a command rather than an assignment.
 If multibyte character support is not compiled into the shell this option is
 ignored; all octets with the top bit set may be used in identifiers.
 This is non-standard but is the traditional zsh behaviour.
+)
+pindex(POSIX_STRINGS)
+pindex(NO_POSIX_STRINGS)
+pindex(POSIXSTRINGS)
+pindex(NOPOSIXSTRINGS)
+cindex(discarding embedded nulls in $'...')
+cindex(embedded nulls, in $'...')
+cindex(nulls, embedded in $'...')
+item(tt(POSIX_STRINGS) <K> <S>)(
+This option affects processing of quoted strings.  Currently it only
+affects the behaviour of null characters, i.e. character 0 in the
+portable character set corresponding to US ASCII.
+
+When this option is not set, null characters embedded within strings
+of the form tt($')var(...)tt(') are treated as ordinary characters. The
+entire string is maintained within the shell and output to files where
+necessary, although owing to restrictions of the library interface
+the string is truncated at the null character in file names, environment
+variables, or in arguments to external programs.
+
+When this option is set, the tt($')var(...)tt(') expression is truncated at
+the null character.  Note that remaining parts of the same string
+beyond the termination of the quotes are not trunctated.
+
+For example, the command line argument tt(a$'b\0c'd) is treated with
+the option off as the characters tt(a), tt(b), null, tt(c), tt(d),
+and with the option on as the characters tt(a), tt(b), tt(d).
+)
+pindex(POSIX_TRAPS)
+pindex(NO_POSIX_TRAPS)
+pindex(POSIXTRAPS)
+pindex(NOPOSIXTRAPS)
+cindex(traps, on function exit)
+cindex(traps, POSIX compatibility)
+item(tt(POSIX_TRAPS) <K> <S>)(
+When the is option is set, the usual zsh behaviour of executing
+traps for tt(EXIT) on exit from shell functions is suppressed.
+In that case, manipulating tt(EXIT) traps always alters the global
+trap for exiting the shell; the tt(LOCAL_TRAPS) option is
+ignored for the tt(EXIT) trap.
 )
 pindex(SH_FILE_EXPANSION)
 pindex(NO_SH_FILE_EXPANSION)

@@ -1,4 +1,4 @@
-.TH "ZSHMODULES" "1" "June 1, 2009" "zsh 4\&.3\&.10"
+.TH "ZSHMODULES" "1" "December 20, 2010" "zsh 4\&.3\&.11"
 .SH "NAME"
 zshmodules \- zsh loadable modules
 .\" Yodl file: Zsh/modules.yo
@@ -116,28 +116,35 @@ styles\&.
 .\" Yodl file: Zsh/mod_attr.yo
 
 The \fBzsh/attr\fP module is used for manipulating extended attributes\&.
+The \fB\-h\fP option causes all commands to operate on symbolic links instead
+of their targets\&.
 The builtins in this module are:
 .PP
 .PD 0
 .TP
 .PD
-\fBzgetattr\fP \fIfilename\fP \fIattribute\fP [ \fIparameter\fP ]
+\fBzgetattr\fP [ \fB\-h\fP ] \fIfilename\fP \fIattribute\fP [ \fIparameter\fP ]
 Get the extended attribute \fIattribute\fP from the specified
 \fIfilename\fP\&. If the optional argument \fIparameter\fP is given, the
 attribute is set on that parameter instead of being printed to stdout\&.
 .TP
-\fBzsetattr\fP \fIfilename\fP \fIattribute\fP \fIvalue\fP
+\fBzsetattr\fP [ \fB\-h\fP ] \fIfilename\fP \fIattribute\fP \fIvalue\fP
 Set the extended attribute \fIattribute\fP on the specified
 \fIfilename\fP to \fIvalue\fP\&.
 .TP
-\fBzdelattr\fP \fIfilename\fP \fIattribute\fP
+\fBzdelattr\fP [ \fB\-h\fP ] \fIfilename\fP \fIattribute\fP
 Remove the extended attribute \fIattribute\fP from the specified
 \fIfilename\fP\&.
 .TP
-\fBzlistattr\fP \fIfilename\fP [ \fIparameter\fP ]
+\fBzlistattr\fP [ \fB\-h\fP ] \fIfilename\fP [ \fIparameter\fP ]
 List the extended attributes currently set on the specified
 \fIfilename\fP\&. If the optional argument \fIparameter\fP is given, the
 list of attributes is set on that parameter instead of being printed to stdout\&.
+.PP
+\fBzgetattr\fP and \fBzlistattr\fP allocate memory dynamically\&.  If the
+attribute or list of attributes grows between the allocation and the call
+to get them, they return 2\&.  On all other errors, 1 is returned\&.  This
+allows the calling function to check for this case and retry\&.
 .SH "THE ZSH/CAP MODULE"
 .\" Yodl file: Zsh/mod_cap.yo
 
@@ -199,7 +206,7 @@ the cloned shell will have job control disabled, and the job
 .PP
 This does not apply when cloning to an \fBunused\fP vc\&.
 .PP
-Cloning to an used (and unprepared) terminal will result in two
+Cloning to a used (and unprepared) terminal will result in two
 processes reading simultaneously from the same terminal, with
 input bytes going randomly to either process\&.
 .PP
@@ -292,6 +299,10 @@ for world writable directories with sticky bit set
 .TP
 \fBow 34;43\fP
 for world writable directories without sticky bit set
+.TP
+\fBsa\fP \fInone\fP
+for files with an associated suffix alias; this is only tested
+after specific suffixes, as described below
 .TP
 \fBst 37;44\fP
 for directories with sticky bit set but not world writable
@@ -415,6 +426,9 @@ scrolls forward one line
 .PD
 \fBexpand\-or\-complete\-prefix\fP, \fBmenu\-complete\-or\-expand\fP
 scrolls forward one screenful
+.TP
+\fBaccept\-search\fP
+stop listing but take no other action
 .PP
 Every other character stops listing and immediately processes the key
 as usual\&.  Any key that is not bound in the \fBlistscroll\fP keymap or
@@ -499,13 +513,17 @@ Selecting matches is done by moving the mark around using the zle movement
 functions\&.  When not all matches can be shown on the screen at the same 
 time, the list will scroll up and down when crossing the top or
 bottom line\&.  The following zle functions have special meaning during
-menu selection:
+menu selection\&.  Note that the following always
+perform the same task within the menu selection map and cannot be
+replaced by user defined widgets, nor can the set of functions
+be extended:
 .PP
 .PD 0
 .TP
 .PD
-\fBaccept\-line\fP
-accepts the current match and leaves menu selection
+\fBaccept\-line\fP, \fBaccept\-search\fP
+accept the current match and leave menu selection (but do
+not cause the command line to be accepted)
 .TP
 \fBsend\-break\fP
 leaves menu selection and restores the previous contents of the
@@ -2093,8 +2111,8 @@ Never show the type names of the \fBstruct stat\fP elements\&.
 .SH "THE ZSH/SYSTEM MODULE"
 .\" Yodl file: Zsh/mod_system.yo
 
-The \fBzsh/system\fP module makes available three builtin commands and
-two parameters\&.
+The \fBzsh/system\fP module makes available various builtin commands and
+parameters\&.
 .PP
 .SS "Builtins"
 .PP
@@ -2209,7 +2227,60 @@ to the command, or 2 for an error on the write; no error message is
 printed in the last case, but the parameter \fBERRNO\fP will reflect
 the error that occurred\&.
 .RE
+.TP
+.PD 0
+\fBzsystem flock [ \-t\fP \fItimeout\fP \fB] [ \-f\fP \fIvar\fP \fB] [\-er]\fP \fIfile\fP
+.TP
+.PD
+\fBzsystem flock \-u\fP \fIfd_expr\fP
+The builtin \fBzsystem\fP\&'s subcommand \fBflock\fP performs advisory file
+locking (via the \fIfcntl\fP(2) system call) over the entire contents
+of the given file\&.  This form of locking requires the processes
+accessing the file to cooperate; its most obvious use is between two
+instances of the shell itself\&.
+.RS
+.PP
+In the first form the named \fIfile\fP, which must already exist, is
+locked by opening a file descriptor to the file and applying a lock to
+the file descriptor\&.  The lock terminates when the shell process that
+created the lock exits; it is therefore often convenient to create file
+locks within subshells, since the lock is automatically released when
+the subshell exits\&.  Status 0 is returned if the lock succeeds, else
+status 1\&.
+.PP
+In the second form the file descriptor given by the arithmetic
+expression \fBfd_expr\fP is closed, releasing a lock\&.  The file descriptor
+can be queried by using the `\fB\-f\fP \fIvar\fP\&' form during the lock;
+on a successful lock, the shell variable \fIvar\fP is set to the file
+descriptor used for locking\&.  The lock will be released if the
+file descriptor is closed by any other means, for example using
+`\fBexec {\fP\fIvar\fP\fB}>&\-\fP\&'; however, the form described here performs
+a safety check that the file descriptor is in use for file locking\&.
+.PP
+By default the shell waits indefinitely for the lock to succeed\&.
+The option \fB\-t\fP \fItimeout\fP specifies a timeout for the lock in
+seconds; currently this must be an integer\&.  The shell will attempt
+to lock the file once a second during this period\&.  If the attempt
+times out, status 2 is returned\&.
+.PP
+If the option \fB\-e\fP is given, the file descriptor for the lock is
+preserved when the shell uses \fBexec\fP to start a new process;
+otherwise it is closed at that point and the lock released\&.
+.PP
+If the option \fB\-r\fP is given, the lock is only for reading, otherwise
+it is for reading and writing\&.  The file descriptor is opened
+accordingly\&.
 .RE
+.TP
+\fBzsystem supports\fP \fIsubcommand\fP
+The builtin \fBzsystem\fP\&'s subcommand \fBsupports\fP tests whether a
+given subcommand is supported\&.  It returns status 0 if so, else
+status 1\&.  It operates silently unless there was a syntax error
+(i\&.e\&. the wrong number of arguments), in which case status 255
+is returned\&.  Status 1 can indicate one of two things:  \fIsubcommand\fP
+is known but not supported by the current operating system, or
+\fIsubcommand\fP is not known (possibly because this is an older
+version of the shell before it was implemented)\&.
 .PP
 .SS "Parameters"
 .PP
@@ -3060,7 +3131,7 @@ at least once\&.  This summary is sorted in decreasing order of the
 amount of time spent in each\&.  The lines contain
 the number of the function in order, which is used in 
 other parts of the list in suffixes of the form
-`\fB[\fP\fInum\fP\fB]\fP\&'.RE, then the number of calls made to the function\&.
+`\fB[\fP\fInum\fP\fB]\fP\&', then the number of calls made to the function\&.
 The next three columns list the time in
 milliseconds spent in the function and its descendants, the average
 time in milliseconds spent in the function and its descendants per
@@ -3098,7 +3169,7 @@ multiple invocations of the \fBzprof\fP builtin command will show the
 times and numbers of calls since the module was loaded\&.  With the
 \fB\-c\fP option, the \fBzprof\fP builtin command will reset its internal
 counters and will not show the listing\&.
-)
+.RE
 .RE
 .SH "THE ZSH/ZPTY MODULE"
 .\" Yodl file: Zsh/mod_zpty.yo
@@ -3226,7 +3297,7 @@ The option `\fB\-t\fP \fItimeout\fP\&' specifies a timeout in hundredths of a
 second\&.  This may be zero, in which case the file descriptors will simply
 be polled and \fBzselect\fP will return immediately\&.  It is possible to call
 zselect with no file descriptors and a non\-zero timeout for use as a
-finer\-grained replacement for `sleep\&'; not, however, the return status is
+finer\-grained replacement for `sleep\&'; note, however, the return status is
 always 1 for a timeout\&.
 .PP
 The option `\fB\-a\fP \fIarray\fP\&' indicates that \fBarray\fP should be set to

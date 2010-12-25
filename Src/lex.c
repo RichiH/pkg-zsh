@@ -116,10 +116,21 @@ mod_export int wb, we;
 /**/
 mod_export int noaliases;
 
-/* we are parsing a line sent to use by the editor */
+/*
+ * If non-zero, we are parsing a line sent to use by the editor, or some
+ * other string that's not part of standard command input (e.g. eval is
+ * part of normal command input).
+ *
+ * Set of bits from LEXFLAGS_*.
+ *
+ * Note that although it is passed into the lexer as an input, the
+ * lexer can set it to zero after finding the word it's searching for.
+ * This only happens if the line being parsed actually does come from
+ * ZLE, and hence the bit LEXFLAGS_ZLE is set.
+ */
 
 /**/
-mod_export int zleparse;
+mod_export int lexflags;
 
 /**/
 mod_export int wordbeg;
@@ -191,6 +202,7 @@ struct lexstack {
     int isfirstch;
     int histactive;
     int histdone;
+    int lexflags;
     int stophist;
     int hlinesz;
     char *hline;
@@ -247,9 +259,20 @@ lexsave(void)
     ls->isfirstch = isfirstch;
     ls->histactive = histactive;
     ls->histdone = histdone;
+    ls->lexflags = lexflags;
     ls->stophist = stophist;
+    stophist = 0;
+    if (!lstack) {
+	/* top level, make this version visible to ZLE */
+	zle_chline = chline;
+	/* ensure line stored is NULL-terminated */
+	if (hptr)
+	    *hptr = '\0';
+    }
     ls->hline = chline;
+    chline = NULL;
     ls->hptr = hptr;
+    hptr = NULL;
     ls->hlinesz = hlinesz;
     ls->cstack = cmdstack;
     ls->csp = cmdsp;
@@ -259,7 +282,9 @@ lexsave(void)
     ls->tokstr = tokstr;
     ls->zshlextext = zshlextext;
     ls->bptr = bptr;
+    tokstr = zshlextext = bptr = NULL;
     ls->bsiz = bsiz;
+    bsiz = 256;
     ls->len = len;
     ls->chwords = chwords;
     ls->chwordlen = chwordlen;
@@ -309,6 +334,7 @@ lexrestore(void)
     isfirstch = lstack->isfirstch;
     histactive = lstack->histactive;
     histdone = lstack->histdone;
+    lexflags = lstack->lexflags;
     stophist = lstack->stophist;
     chline = lstack->hline;
     hptr = lstack->hptr;
@@ -350,6 +376,11 @@ lexrestore(void)
     errflag = 0;
 
     ln = lstack->next;
+    if (!ln) {
+	/* Back to top level: don't need special ZLE value */
+	DPUTS(chline != zle_chline, "BUG: Ouch, wrong chline for ZLE");
+	zle_chline = NULL;
+    }
     free(lstack);
     lstack = ln;
 }
@@ -367,16 +398,17 @@ zshlex(void)
     if (tok == NEWLIN || tok == ENDINPUT) {
 	while (hdocs) {
 	    struct heredocs *next = hdocs->next;
-	    char *name;
+	    char *doc, *munged_term;
 
 	    hwbegin(0);
 	    cmdpush(hdocs->type == REDIR_HEREDOC ? CS_HEREDOC : CS_HEREDOCD);
+	    munged_term = dupstring(hdocs->str);
 	    STOPHIST
-	    name = gethere(hdocs->str, hdocs->type);
+	    doc = gethere(&munged_term, hdocs->type);
 	    ALLOWHIST
 	    cmdpop();
 	    hwend();
-	    if (!name) {
+	    if (!doc) {
 		zerr("here document too large");
 		while (hdocs) {
 		    next = hdocs->next;
@@ -386,7 +418,8 @@ zshlex(void)
 		tok = LEXERR;
 		break;
 	    }
-	    setheredoc(hdocs->pc, REDIR_HERESTR, name);
+	    setheredoc(hdocs->pc, REDIR_HERESTR, doc, hdocs->str,
+		       munged_term);
 	    zfree(hdocs, sizeof(struct heredocs));
 	    hdocs = next;
 	}
@@ -395,7 +428,7 @@ zshlex(void)
 	isnewlin = 0;
     else
 	isnewlin = (inbufct) ? -1 : 1;
-    if (tok == SEMI || tok == NEWLIN)
+    if (tok == SEMI || (tok == NEWLIN && !(lexflags & LEXFLAGS_NEWLINE)))
 	tok = SEPER;
 }
 
@@ -554,13 +587,20 @@ add(int c)
     }
 }
 
-#define SETPARBEGIN {if (zleparse && !(inbufflags & INP_ALIAS) && zlemetacs >= zlemetall+1-inbufct) parbegin = inbufct;}
-#define SETPAREND {\
-	    if (zleparse && !(inbufflags & INP_ALIAS) && parbegin != -1 && parend == -1) {\
-		if (zlemetacs >= zlemetall + 1 - inbufct)\
-		    parbegin = -1;\
-		else\
-		    parend = inbufct;} }
+#define SETPARBEGIN {							\
+	if ((lexflags & LEXFLAGS_ZLE) && !(inbufflags & INP_ALIAS) &&	\
+	    zlemetacs >= zlemetall+1-inbufct)				\
+	    parbegin = inbufct;		      \
+    }
+#define SETPAREND {						      \
+	if ((lexflags & LEXFLAGS_ZLE) && !(inbufflags & INP_ALIAS) && \
+	    parbegin != -1 && parend == -1) {			      \
+	    if (zlemetacs >= zlemetall + 1 - inbufct)		      \
+		parbegin = -1;					      \
+	    else						      \
+		parend = inbufct;				      \
+	}							      \
+    }
 
 /*
  * Return 1 for math, 0 for a command, 2 for an error.  If it couldn't be
@@ -724,26 +764,53 @@ gettok(void)
 
     /* chars in initial position in word */
 
+    /*
+     * Handle comments.  There are some special cases when this
+     * is not normal command input: lexflags implies we are examining
+     * a line lexically without it being used for normal command input.
+     */
     if (c == hashchar && !nocomments &&
 	(isset(INTERACTIVECOMMENTS) ||
-	 (!zleparse && !expanding &&
+	 ((!lexflags || (lexflags & LEXFLAGS_COMMENTS)) && !expanding &&
 	  (!interact || unset(SHINSTDIN) || strin)))) {
 	/* History is handled here to prevent extra  *
 	 * newlines being inserted into the history. */
 
+	if (lexflags & LEXFLAGS_COMMENTS_KEEP) {
+	    len = 0;
+	    bptr = tokstr = (char *)hcalloc(bsiz = 32);
+	    add(c);
+	}
 	while ((c = ingetc()) != '\n' && !lexstop) {
 	    hwaddc(c);
 	    addtoline(c);
+	    if (lexflags & LEXFLAGS_COMMENTS_KEEP)
+		add(c);
 	}
 
 	if (errflag)
 	    peek = LEXERR;
 	else {
-	    hwend();
-	    hwbegin(0);
-	    hwaddc('\n');
-	    addtoline('\n');
-	    peek = NEWLIN;
+	    if (lexflags & LEXFLAGS_COMMENTS_KEEP) {
+		*bptr = '\0';
+		if (!lexstop)
+		    hungetc(c);
+		peek = STRING;
+	    } else {
+		hwend();
+		hwbegin(0);
+		hwaddc('\n');
+		addtoline('\n');
+		/*
+		 * If splitting a line and removing comments,
+		 * we don't want a newline token since it's
+		 * treated specially.
+		 */
+		if ((lexflags & LEXFLAGS_COMMENTS_STRIP) && lexstop)
+		    peek = ENDINPUT;
+		else
+		    peek = NEWLIN;
+	    }
 	}
 	return peek;
     }
@@ -818,6 +885,11 @@ gettok(void)
 		    return DINPAR;
 
 		case 0:
+		    /*
+		     * Not math, so we don't return the contents
+		     * as a string in this case.
+		     */
+		    tokstr = NULL;
 		    return INPAR;
 
 		default:
@@ -1379,7 +1451,12 @@ gettokstr(int c, int sub)
 }
 
 
-/* Return non-zero for error (character to unget), else zero */
+/*
+ * Parse input as if in double quotes.
+ * endchar is the end character to expect.
+ * sub has got something to do with whether we are doing quoted substitution.
+ * Return non-zero for error (character to unget), else zero
+ */
 
 /**/
 static int
@@ -1572,14 +1649,20 @@ parsestrnoerr(char *s)
     return err;
 }
 
+/*
+ * Parse a subscript in string s.
+ * sub is passed down to dquote_parse().
+ * endchar is the final character.
+ * Return the next character, or NULL.
+ */
 /**/
 mod_export char *
-parse_subscript(char *s, int sub)
+parse_subscript(char *s, int sub, int endchar)
 {
     int l = strlen(s), err;
     char *t;
 
-    if (!*s || *s == ']')
+    if (!*s || *s == endchar)
 	return 0;
     lexsave();
     untokenize(t = dupstring(s));
@@ -1588,15 +1671,16 @@ parse_subscript(char *s, int sub)
     len = 0;
     bptr = tokstr = s;
     bsiz = l + 1;
-    err = dquote_parse(']', sub);
+    err = dquote_parse(endchar, sub);
     if (err) {
 	err = *bptr;
-	*bptr = 0;
+	*bptr = '\0';
 	untokenize(s);
 	*bptr = err;
-	s = 0;
-    } else
+	s = NULL;
+    } else {
 	s = bptr;
+    }
     strinend();
     inpop();
     DPUTS(cmdsp, "BUG: parse_subscript: cmdstack not empty.");
@@ -1700,7 +1784,7 @@ gotword(void)
     we = zlemetall + 1 - inbufct + (addedx == 2 ? 1 : 0);
     if (zlemetacs <= we) {
 	wb = zlemetall - wordbeg + addedx;
-	zleparse = 0;
+	lexflags = 0;
     }
 }
 
@@ -1735,11 +1819,11 @@ exalias(void)
 	} else
 	    zshlextext = tokstr;
 
-	if (zleparse && !(inbufflags & INP_ALIAS)) {
-	    int zp = zleparse;
+	if ((lexflags & LEXFLAGS_ZLE) && !(inbufflags & INP_ALIAS)) {
+	    int zp = lexflags;
 
 	    gotword();
-	    if (zp == 1 && !zleparse) {
+	    if (zp == 1 && !lexflags) {
 		if (zshlextext == copy)
 		    zshlextext = tokstr;
 		return 0;
@@ -1757,7 +1841,7 @@ exalias(void)
 		if (an && !an->inuse &&
 		    ((an->node.flags & ALIAS_GLOBAL) || incmdpos || inalmore)) {
 		    inpush(an->text, INP_ALIAS, an);
-		    if (an->text[0] == ' ')
+		    if (an->text[0] == ' ' && !(an->node.flags & ALIAS_GLOBAL))
 			aliasspaceflag = 1;
 		    lexstop = 0;
 		    if (zshlextext == copy)
