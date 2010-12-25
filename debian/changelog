@@ -1,3 +1,9 @@
+zsh (4.3.11-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Clint Adams <clint@zsh.org>  Sat, 25 Dec 2010 09:36:19 -0500
+
 zsh (4.3.10-17) unstable; urgency=low
 
   * Various git completion fixes.
