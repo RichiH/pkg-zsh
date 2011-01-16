@@ -1,3 +1,13 @@
+zsh (4.3.11-2) unstable; urgency=low
+
+  * Fix psmisc detection of fuser completion, thanks to GI.
+    closes: #607603.
+  * Change "recommended" prompt theme to adam1.
+  * Turn SHARE_HISTORY on in the recommended zshrc.
+  * Orphan the package.
+
+ -- Clint Adams <clint@zsh.org>  Sun, 16 Jan 2011 12:30:13 -0500
+
 zsh (4.3.11-1) unstable; urgency=low
 
   * New upstream release.
