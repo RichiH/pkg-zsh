@@ -1,3 +1,10 @@
+zsh (4.3.11-3) unstable; urgency=low
+
+  * [6b5d568] Update Vcs-Git and Vcs-Browser control headers.
+  * [17c579f] New maintainers (pkg-zsh). (Closes: #612143)
+
+ -- Michael Prokop <mika@debian.org>  Thu, 10 Feb 2011 10:48:36 +0100
+
 zsh (4.3.11-2) unstable; urgency=low
 
   * Fix psmisc detection of fuser completion, thanks to GI.
